@@ -1,7 +1,7 @@
+command=$1
 start_flp=$2
 stop_flp=$3
 
-command=$1
 
 echo "Execute $command on FLPS ($start_flp..$stop_flp)"
 
