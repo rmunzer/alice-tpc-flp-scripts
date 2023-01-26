@@ -1,1 +1,4 @@
 *.dat
+check_links_status.sh
+links_script.sh
+pat_script.sh
