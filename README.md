@@ -24,7 +24,10 @@ option:
 
 
 Requirements:
-    - Node with configured Private/Public key connection to FLP (e.g. lxplus, alice-tpc-test)
-    - Create folder
-    - Run: "git clone git@github.com:rmunzer/alice-tpc-flp-scripts.git <Path-to-your-folder>"
+   
+    Node with configured Private/Public key connection to FLP (e.g. lxplus, alice-tpc-test)
+   
+    Create folder
+    
+    Run: "git clone git@github.com:rmunzer/alice-tpc-flp-scripts.git <Path-to-your-folder>"
     
