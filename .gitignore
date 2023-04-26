@@ -3,3 +3,4 @@ check_links_status.sh
 links_script.sh
 pat_script.sh
 calib_files
+data_scripts/run*
