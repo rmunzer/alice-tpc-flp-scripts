@@ -1,9 +1,9 @@
 run=$1
-period=LHC23b_TPC
-num_files=2
+period=LHC23c
+num_files=3
 folder=/alice/data/2023/${period}/${run}
 echo Folder 1: $folder
-sub1=`alien.py ls ${folder}`
+sub1=raw
 folder=/alice/data/2023/${period}/${run}/${sub1}
 echo Folder 2: $folder
 
@@ -13,7 +13,8 @@ while read -r line
 do
 	folder=/alice/data/2023/${period}/${run}/${sub1}/${line}
 	echo Folder 2: $folder
-	alien.py ls ${folder} >> /tmp/alien_raw_files
+	alien.py ls ${folder}/*.tf > /tmp/alien_raw_files
+	cat /tmp/alien_raw_files
 	while read -r line2
 	do
 		echo $line2	
