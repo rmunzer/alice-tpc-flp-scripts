@@ -76,6 +76,6 @@ if [[ -z "$inputFile" ]]; then
 fi
 
 # ===| command building and execution |=========================================
-cmd="root.exe -b -q -l -n -x /home/rmunzer/bin/preparePedestalFiles.C'(\"$inputFile\",\"$outputDir\", $sigmaNoise, $minADC, $pedestalOffset, $onlyFilled, $maskZero, $noisyThreshold, $sigmaNoiseNoisy, $badChannelThreshold)'"
+cmd="root.exe -b -q -l -n -x $O2_SRC/Detectors/TPC/calibration/macro/preparePedestalFiles.C'(\"$inputFile\",\"$outputDir\", $sigmaNoise, $minADC, $pedestalOffset, $onlyFilled, $maskZero, $noisyThreshold, $sigmaNoiseNoisy, $badChannelThreshold)'"
 echo "running: $cmd"
 eval $cmd

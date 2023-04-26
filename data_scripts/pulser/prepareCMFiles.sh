@@ -8,16 +8,7 @@ required arguments
 -i, --inputFile=    :  input file name
 
 optional arguments:
--o, --outputDir=          : set output directory for (default: ./)
--m, --minADC=             : minimal ADC value accepted for threshold (default: $minADC)
--s, --sigmaNoise=         : number of sigmas for the threshold (default: $sigmaNoise)
--p, --pedestalOffset=     : pedestal offset value
--f, --onlyFilled          : only write links which have data
--k, --noMaskZero          : don't set pedetal value of missing pads to 1023
--h, --help                : show this help message
--n, --noisyThreshold      : threshold for noisy channel treatment (default: $noisyThreshold)
--y, --sigmaNoiseNoisy     : sigmaNoise for noisy channels (default: $sigmaNoiseNoisy)
--b, --badChannelThreshold : noise threshold to mask channels (default: $badChannelThreshold)"
+-o, --outputDir=          : set output directory for (default: ./)"
 
   echo "$usage"
 }
@@ -44,7 +35,7 @@ sigmaNoiseNoisy=4
 badChannelThreshold=6
 
 # ===| parse command line options |=============================================
-OPTIONS=$(getopt -l "inputFile:,outputDir:,minADC:,sigmaNoise:,pedestalOffset:,noisyThreshold:,sigmaNoiseNoisy:,badChannelThreshold:,onlyFilled,noMaskZero,help" -o "i:o:t:m:s:p:n:y:b:fkh" -n "preparePedestalFiles.sh" -- "$@")
+OPTIONS=$(getopt -l "inputFile:,outputDir:,help" -o "i:o:h" -n "prepareCMFiles.sh" -- "$@")
 
 if [ $? != 0 ] ; then
   usageAndExit
@@ -68,6 +59,6 @@ if [[ -z "$inputFile" ]]; then
 fi
 
 # ===| command building and execution |=========================================
-cmd="root.exe -b -q -l -n -x ./src/prepareCMFiles.C+g'(\"$inputFile\",\"$outputDir\")'"
+cmd="root.exe -b -q -l -n -x $O2_SRC/Detectors/TPC/calibration/macro/prepareCMFiles.C+g'(\"$inputFile\",\"$outputDir\")'"
 echo "running: $cmd"
 eval $cmd

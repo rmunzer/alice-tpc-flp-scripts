@@ -2,7 +2,7 @@
 
 usage() {
   usage="Usage:
-drawPulser.sh <required arguments> [optional arguments]
+prepareCMFiles.sh <required arguments> [optional arguments]
 
 required arguments
 -i, --inputFile=    :  input file name
@@ -24,7 +24,7 @@ optional arguments:
 
 usageAndExit() {
   usage
-  if [[ "$0" =~ drawPulser.sh ]]; then
+  if [[ "$0" =~ prepareCMFiles.sh ]]; then
     exit 0
   else
     return 0
@@ -68,6 +68,6 @@ if [[ -z "$inputFile" ]]; then
 fi
 
 # ===| command building and execution |=========================================
-cmd="root.exe -b -q -l -n -x $O2_SRC/Detectors/TPC/calibration/macro/drawPulser.C+g'(\"$inputFile\",1,\"$outputDir\")'"
+cmd="root.exe -b -q -l -n -x ./src/prepareCMFiles.C+g'(\"$inputFile\",\"$outputDir\")'"
 echo "running: $cmd"
 eval $cmd
