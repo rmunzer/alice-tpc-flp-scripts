@@ -8,18 +8,30 @@ Usage:
   
   Action selection
   -i, --init          		:  Initial Script
+  
   -l, --links         		:  Link Status
+  
   -a, --alf           		:  Restart ALF
-      --alf_force     		:  Restart ALF (force resart)
+  
+    --alf_force     		:  Restart ALF (force resart)
 
+  
   -s, --start_flp=    		:  Start FLP
+  
   -f, --stop_flp=     		:  Stop FLP
+  
   -p, --pp 	      		:  COnfig pattern player
-      --pp_tf=        		:  Skipped TF in pp for re-sync (=0x1)
-      --pp_bc=        		:  BC for re-sync (=0x8)
+  
+    --pp_tf=        		:  Skipped TF in pp for re-sync (=0x1)
+  
+    --pp_bc=        		:  BC for re-sync (=0x8)
+  
   -c, --cru_config    		:  Config CRU
+  
       --cru_config_force    	:  Config CRU force
+  
   -r, --rescan        		:  Rescan (Reload Firmware)
+  
   -h, --help          		:  Show Help
 
 
