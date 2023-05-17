@@ -4,23 +4,23 @@ Collection of simple FLP scripts usefull for TPC operation
 
 
 Usage:
+  flp_execute.sh <required arguments> [optional arguments]
+  
+  Action selection
+  -i, --init          		:  Initial Script
+  -l, --links         		:  Link Status
+  -a, --alf           		:  Restart ALF
+      --alf_force     		:  Restart ALF (force resart)
 
-flp_execute <option> <start_flp> <stop_flp>
-
-option:
-    init             : copy scripts to flps
-    
-    links            : List fec counter on the CRU
-    
-    cru_config       : Configure FLP/CRU based on the configuratrion on consul
-    
-    cru_config_force : Configure FLP/CRU based on the configuratrion on consul
-    
-    restart_alf      : Restart Alf
-    
-    rescan           : Rescan CRUs (to be used if CRU does not sent data)
-    
-    pat              : Manual configuration of pattern Player 
+  -s, --start_flp=    		:  Start FLP
+  -f, --stop_flp=     		:  Stop FLP
+  -p, --pp 	      		:  COnfig pattern player
+      --pp_tf=        		:  Skipped TF in pp for re-sync (=0x1)
+      --pp_bc=        		:  BC for re-sync (=0x8)
+  -c, --cru_config    		:  Config CRU
+      --cru_config_force    	:  Config CRU force
+  -r, --rescan        		:  Rescan (Reload Firmware)
+  -h, --help          		:  Show Help
 
 
 Requirements:
