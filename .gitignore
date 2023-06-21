@@ -4,3 +4,4 @@ links_script.sh
 pat_script.sh
 calib_files
 data_scripts/run*
+firmware_versions
