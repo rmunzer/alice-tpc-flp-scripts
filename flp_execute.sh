@@ -14,6 +14,7 @@ usage() {
   -f, --stop_flp=     		:  Stop FLP
   -p, --pp 	      		:  COnfig pattern player
       --pp_read 	      	:  COnfig pattern player
+      --pp_new	 	      	:  COnfig pattern player (new Pattern Player)
       --pp_tf=        		:  Skipped TF in pp for re-sync (=0x1)
       --pp_bc=        		:  BC for re-sync (=0x8)
   -c, --cru_config    		:  Config CRU
@@ -21,6 +22,7 @@ usage() {
       --fw_copy=<file>          :  Copy firmware in to rescanning folder
       --fw_revert               :  Revert firmw in rescanning folder to golden version
   -r, --rescan        		:  Rescan (Reload Firmware)
+      --rescan_full      	:  Rescan (Reload Firmware) - Using local file if available
   -h, --help          		:  Show Help
   "  
   echo "$usage"
@@ -42,6 +44,7 @@ usageAndExit() {
   alf=0
   alf_force=0
   pat=0
+  pat_new=0
   pat_tf=0x4800
 #  pat_tf=0xfffffff
   pat_bc=0x8
@@ -49,6 +52,7 @@ usageAndExit() {
   pp_read=0
   cru_config_force=0
   rescan=0
+  rescan_full=0
   start_flp=0
   stop_flp=0   
   oos_dump=0
@@ -56,7 +60,7 @@ usageAndExit() {
   firmware_revert=0
                    
 # ===| parse command line options |=============================================
-OPTIONS=$(getopt -l "init,links,alf,alf_force,start_flp:,oos_dump,stop_flp:,fw_copy:,fw_revert,pp,pp_tf:,pp_bc:,pp_read,cru_config,cru_config_force,rescan,help" -o "s:f:ilapcrho" -n "flp_execute.sh" -- "$@")
+OPTIONS=$(getopt -l "init,links,alf,alf_force,start_flp:,oos_dump,stop_flp:,fw_copy:,fw_revert,pp,pp_new,pp_tf:,pp_bc:,pp_read,cru_config,cru_config_force,rescan,rescan_full,help" -o "s:f:ilapcrho" -n "flp_execute.sh" -- "$@")
                     
 if [ $? != 0 ] ; then
   usageAndExit
@@ -75,9 +79,11 @@ while true; do
       --pp_read) shift 1;;
       --pp_tf) pat_tf=$2; shift 2;;
       --pp_bc) pat_bc=$2; shift 2;;
+      --pp_new) pat_new=1; shift 1;;
       -c|--cru_config) cru_config=1; shift;;
       --cru_config_force) cru_config_force=1; shift;;
       -r|--rescan) rescan=1; shift;;
+      --rescan_full) rescan_full=1; shift;;
       -s|--start_flp) start_flp=$2; shift 2;;
       -f|--stop_flp) stop_flp=$2; shift 2;;
       --fw_copy) firmware_copy=$2; shift 2;;
@@ -135,7 +141,11 @@ do
 	fi
 	if [[ $rescan == 1  ]]; 
 	then 
-		ssh tpc@alio2-cr1-flp$i "sudo ./scripts/rescan.sh 1"; 
+		ssh tpc@alio2-cr1-flp$i "sudo ./scripts/rescan.sh 1" &
+	fi
+	if [[ $rescan_full == 1  ]]; 
+	then 
+		ssh tpc@alio2-cr1-flp$i "sudo /root/serial_update/workspace/rescan.sh 1" & 
 	fi
 	if [[ $alf_force == 1 ]]; 
 	then 
@@ -143,6 +153,9 @@ do
 	fi
 	if [[ $pat == 1  ]]; then 
 		ssh tpc@alio2-cr1-flp$i "source ./scripts/pat.sh $pat_tf $pat_bc" &
+	fi
+	if [[ $pat_new == 1  ]]; then 
+		ssh tpc@alio2-cr1-flp$i "source ./scripts/pat-new.sh" &
 	fi
 	echo $pat_read
 	if [[ $pat_read == 1  ]]; then 
@@ -152,6 +165,8 @@ do
 		ssh tpc@alio2-cr1-flp$i "sudo mv /root/serial_update/cru-fw/cru.sof /root/serial_update/cru-fw/cru.sof.old" &
 	fi
 	if [[ $firmware_copy != ""  ]]; then 
+		echo scp $firmware_copy tpc@alio2-cr1-flp$i:cru.sof
+		echo ssh tpc@alio2-cr1-flp$i "sudo mv /home/tpc/cru.sof /root/serial_update/cru-fw/cru.sof" &
 		scp $firmware_copy tpc@alio2-cr1-flp$i:cru.sof
 		ssh tpc@alio2-cr1-flp$i "sudo mv /home/tpc/cru.sof /root/serial_update/cru-fw/cru.sof" &
 	fi
