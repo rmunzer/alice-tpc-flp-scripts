@@ -22,7 +22,7 @@ do
     o2-roc-reg-write --id=#$i --ch=2 --address=00260034 --val=0x0
     o2-roc-reg-write --id=#$i --ch=2 --address=00260038 --val=0x200
 #### TIME_STAMP
-    o2-roc-reg-write --id=#$i --ch=2 --address=00260040 --val=0x12C1fC94
+    o2-roc-reg-write --id=#$i --ch=2 --address=00260040 --val=0x12C1fC04
 
 
 

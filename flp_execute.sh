@@ -22,7 +22,6 @@ usage() {
       --fw_copy=<file>          :  Copy firmware in to rescanning folder
       --fw_revert               :  Revert firmw in rescanning folder to golden version
   -r, --rescan        		:  Rescan (Reload Firmware)
-      --rescan_full      	:  Rescan (Reload Firmware) - Using local file if available
   -h, --help          		:  Show Help
   "  
   echo "$usage"
@@ -139,14 +138,6 @@ do
 	then 
 		ssh tpc@alio2-cr1-flp$i "source ./scripts/restart_alf.sh"; 
 	fi
-	if [[ $rescan == 1  ]]; 
-	then 
-		ssh tpc@alio2-cr1-flp$i "sudo ./scripts/rescan.sh 1" &
-	fi
-	if [[ $rescan_full == 1  ]]; 
-	then 
-		ssh tpc@alio2-cr1-flp$i "sudo /root/serial_update/workspace/rescan.sh 1" & 
-	fi
 	if [[ $alf_force == 1 ]]; 
 	then 
 		ssh tpc@alio2-cr1-flp$i "source ./scripts/restart_alf.sh 1"; 
@@ -170,6 +161,11 @@ do
 		scp $firmware_copy tpc@alio2-cr1-flp$i:cru.sof
 		ssh tpc@alio2-cr1-flp$i "sudo mv /home/tpc/cru.sof /root/serial_update/cru-fw/cru.sof" &
 	fi
+	if [[ $rescan == 1  ]]; 
+	then 
+		ssh tpc@alio2-cr1-flp$i "sudo /root/serial_update/workspace/rescan.sh 1" & 
+	fi
+
 	sleep 0.5
 
 done
