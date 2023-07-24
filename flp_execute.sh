@@ -21,6 +21,7 @@ usage() {
       --cru_config_force    	:  Config CRU force
       --fw_copy=<file>          :  Copy firmware in to rescanning folder
       --fw_revert               :  Revert firmw in rescanning folder to golden version
+      --fw_check                :  Execute roc-list-cards
   -r, --rescan        		:  Rescan (Reload Firmware)
   -h, --help          		:  Show Help
   "  
@@ -57,9 +58,10 @@ usageAndExit() {
   oos_dump=0
   firmware_copy=""
   firmware_revert=0
+  firmware_check=0
                    
 # ===| parse command line options |=============================================
-OPTIONS=$(getopt -l "init,links,alf,alf_force,start_flp:,oos_dump,stop_flp:,fw_copy:,fw_revert,pp,pp_new,pp_tf:,pp_bc:,pp_read,cru_config,cru_config_force,rescan,rescan_full,help" -o "s:f:ilapcrho" -n "flp_execute.sh" -- "$@")
+OPTIONS=$(getopt -l "init,links,alf,alf_force,start_flp:,oos_dump,stop_flp:,fw_copy:,fw_revert,fw_check,pp,pp_new,pp_tf:,pp_bc:,pp_read,cru_config,cru_config_force,rescan,rescan_full,help" -o "s:f:ilapcrho" -n "flp_execute.sh" -- "$@")
                     
 if [ $? != 0 ] ; then
   usageAndExit
@@ -87,6 +89,7 @@ while true; do
       -f|--stop_flp) stop_flp=$2; shift 2;;
       --fw_copy) firmware_copy=$2; shift 2;;
       --fw_revert) firmware_revert=1; shift;;
+      --fw_check) firmware_check=1; shift;;
       -h|--help) usageAndExit; shift;;
       *) echo "Internal error!" ; exit 1 ;;
    esac
@@ -140,7 +143,7 @@ do
 	fi
 	if [[ $alf_force == 1 ]]; 
 	then 
-		ssh tpc@alio2-cr1-flp$i "source ./scripts/restart_alf.sh 1"; 
+		ssh tpc@alio2-cr1-flp$i "source ./scripts/restart_alf.sh 1" & 
 	fi
 	if [[ $pat == 1  ]]; then 
 		ssh tpc@alio2-cr1-flp$i "source ./scripts/pat.sh $pat_tf $pat_bc" &
@@ -155,6 +158,10 @@ do
 	if [[ $firmware_revert == 1  ]]; then 
 		ssh tpc@alio2-cr1-flp$i "sudo mv /root/serial_update/cru-fw/cru.sof /root/serial_update/cru-fw/cru.sof.old" &
 	fi
+	if [[ $firmware_check == 1  ]]; then 
+		echo "check FW"
+		ssh tpc@alio2-cr1-flp$i "roc-list-cards" &
+	fi
 	if [[ $firmware_copy != ""  ]]; then 
 		echo scp $firmware_copy tpc@alio2-cr1-flp$i:cru.sof
 		echo ssh tpc@alio2-cr1-flp$i "sudo mv /home/tpc/cru.sof /root/serial_update/cru-fw/cru.sof" &
@@ -163,7 +170,7 @@ do
 	fi
 	if [[ $rescan == 1  ]]; 
 	then 
-		ssh tpc@alio2-cr1-flp$i "sudo /root/serial_update/workspace/rescan.sh 1" & 
+		ssh tpc@alio2-cr1-flp$i "sudo /home/tpc/scripts/rescan.sh 1" & 
 	fi
 
 	sleep 0.5

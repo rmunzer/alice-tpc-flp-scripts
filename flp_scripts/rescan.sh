@@ -7,6 +7,7 @@ ${prefix}o2-roc-list-cards > /root/serial_update/workspace/logs/before_last_resc
 skip=0
 addrs=$(lspci | grep -i 'cern' | awk '{print $1}')
 num_rescanned=0
+jtag_cable=1
 config_addrs=()
 
 for i in $addrs
@@ -17,8 +18,15 @@ do
     if [ $firmware != "0xe4a5a46e" ] && [ $# == 0 ]; then
       continue
     fi
-    ${prefix}o2-roc-reg-write --id=$i --ch=2 --addr=0x20000 --val=0x0 > /dev/null
-    ${prefix}o2-roc-reg-write --id=$i --ch=2 --addr=0x20004 --val=0x1 > /dev/null
+    # check if you need to load sof or rpd file
+    if [ -f "/root/serial_update/cru-fw/cru.sof" ]; then
+      /root/intelFPGA_pro/17.1/qprogrammer/bin/quartus_pgm --cable=$jtag_cable --mode=JTAG --operation="p;/root/serial_update/cru-fw/cru.sof"
+      # increase jtag cable number
+      let jtag_cable+=1
+    else
+      ${prefix}o2-roc-reg-write --id=$i --ch=2 --addr=0x20000 --val=0x0 > /dev/null
+      ${prefix}o2-roc-reg-write --id=$i --ch=2 --addr=0x20004 --val=0x1 > /dev/null
+    fi
     #add first endpoint for config
     config_addrs+=$i
     #care for second endpoint
@@ -78,11 +86,13 @@ do
 
         for j in 0 1
         do
-            ${prefix}o2-roc-config --id=$sn:$j --byp --force --config-uri consul-json://alio2-cr1-hv-aliecs:8500/o2/components/readoutcard/${host}/cru/${sn}/$j
+            ${prefix}o2-roc-config --id=$sn:$j --byp --config-uri consul-json://localhost:8500/o2/components/readoutcard/${host}/cru/${sn}/$j
         done
     else
         skip=0
     fi
 done
+
+/home/tpc/scripts/pp-new.sh
 
 exit 0
