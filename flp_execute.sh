@@ -12,6 +12,7 @@ usage() {
   -o, --oos_dump    		:  Dump performance of IDC output proxy
   -s, --start_flp=    		:  Start FLP
   -f, --stop_flp=     		:  Stop FLP
+    , --all	                :  Use all FLPs
   -p, --pp 	      		:  COnfig pattern player
       --pp_read 	      	:  COnfig pattern player
       --pp_new	 	      	:  COnfig pattern player (new Pattern Player)
@@ -54,14 +55,15 @@ usageAndExit() {
   rescan=0
   rescan_full=0
   start_flp=0
-  stop_flp=0   
+  stop_flp=0
+  all=0
   oos_dump=0
   firmware_copy=""
   firmware_revert=0
   firmware_check=0
                    
 # ===| parse command line options |=============================================
-OPTIONS=$(getopt -l "init,links,alf,alf_force,start_flp:,oos_dump,stop_flp:,fw_copy:,fw_revert,fw_check,pp,pp_new,pp_tf:,pp_bc:,pp_read,cru_config,cru_config_force,rescan,rescan_full,help" -o "s:f:ilapcrho" -n "flp_execute.sh" -- "$@")
+OPTIONS=$(getopt -l "init,links,alf,alf_force,all,start_flp:,oos_dump,stop_flp:,fw_copy:,fw_revert,fw_check,pp,pp_new,pp_tf:,pp_bc:,pp_read,cru_config,cru_config_force,rescan,rescan_full,help" -o "s:f:ilapcrho" -n "flp_execute.sh" -- "$@")
                     
 if [ $? != 0 ] ; then
   usageAndExit
@@ -87,6 +89,7 @@ while true; do
       --rescan_full) rescan_full=1; shift;;
       -s|--start_flp) start_flp=$2; shift 2;;
       -f|--stop_flp) stop_flp=$2; shift 2;;
+      --all) start_flp=1; stop_flp=145; shift;;
       --fw_copy) firmware_copy=$2; shift 2;;
       --fw_revert) firmware_revert=1; shift;;
       --fw_check) firmware_check=1; shift;;
@@ -99,10 +102,19 @@ done
 
 echo $cmc $itf $pad
 command=""
+if [[ $start_flp -eq 0 ]];
+then
+    usageAndExit;
+fi
+if [[ $stop_flp -eq 0 ]];
+then 
+    stop_flp=$start_flp
+fi
 if [[ $start_flp -gt $stop_flp ]];
 then
     usageAndExit;
 fi
+
 
 BASEDIR=$(dirname "$0")
 echo "$BASEDIR"
