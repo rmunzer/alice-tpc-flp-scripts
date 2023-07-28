@@ -93,6 +93,6 @@ do
     fi
 done
 
-/home/tpc/scripts/pp-new.sh
+/home/tpc/scripts/pat-new.sh
 
 exit 0
