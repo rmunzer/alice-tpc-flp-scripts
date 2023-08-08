@@ -1,4 +1,5 @@
 pwd=$PWD
+echo $pwd
 export PATH=$PWD:$PWD/data_scripts:$PWD/data_scripts/pedestal:$PATH
 opt1=`grep Action flp_execute.sh -A 30 | grep - | cut -f1 -d: | cut -f1 -d, | cut -f1 -d=`
 opt2=`grep Action flp_execute.sh -A 30 | grep - | cut -f1 -d: | cut -f2 -d, | cut -f1 -d=`
