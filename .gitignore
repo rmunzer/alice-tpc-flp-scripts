@@ -1,3 +1,9 @@
+*.pcm
+*dpl-config.json
+*.ini
+*.so
+*.d
+*.root
 *.dat
 check_links_status.sh
 links_script.sh

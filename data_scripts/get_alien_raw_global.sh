@@ -1,6 +1,6 @@
 run=$1
-period=LHC23c
-num_files=3
+period=LHC23zx
+num_files=1
 folder=/alice/data/2023/${period}/${run}
 echo Folder 1: $folder
 sub1=raw
