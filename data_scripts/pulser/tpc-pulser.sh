@@ -1,4 +1,4 @@
-  ARGS_ALL+=" --severity info  --shm-segment-size 500000000"
+  ARGS_ALL+=" --severity info  --shm-segment-size 5000000000"
   
   PROXY_INSPEC="A:TPC/RAWDATA;dd:FLP/DISTSUBTIMEFRAME/0"
   CALIB_INSPEC="A:TPC/RAWDATA;dd:FLP/DISTSUBTIMEFRAME/0"
@@ -11,11 +11,11 @@
   CCDB_PATH="--ccdb-path http://o2-ccdb.internal"
   HOST=localhost
   
-  o2-raw-tf-reader-workflow --onlyDet TPC --input-data tfs.txt \
-#  | o2-tpc-calib-pad-raw $ARGS_ALL \
-#  --input-spec "$CALIB_INSPEC" \
-#  --configKeyValues "$CALIB_CONFIG;keyval.output_dir=/dev/null" \
-#  $EXTRA_CONFIG \
-#  | o2-calibration-ccdb-populator-workflow $ARGS_ALL \
-#   $CCDB_PATH
-                                          
+  o2-raw-tf-reader-workflow --onlyDet TPC --input-data tfs.txt $ARGS_ALL \
+#    | o2-tpc-calib-pad-raw $ARGS_ALL \
+ #    --input-spec "$CALIB_INSPEC" \
+ #    --configKeyValues "$CALIB_CONFIG;keyval.output_dir=/dev/null" \
+ #    $EXTRA_CONFIG \
+ #    | o2-calibration-ccdb-populator-workflow $ARGS_ALL \
+ #    $CCDB_PATH \
+ #    | o2-dpl-run $ARGS_ALL
