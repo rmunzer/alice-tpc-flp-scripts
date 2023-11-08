@@ -15,7 +15,11 @@ fi
 pat_tf=`echo ${pat_tf#0x}`
 pat_bc=`echo ${pat_bc#0x}`
 resync=0x${pat_tf}${pat_bc}C04
-echo $resync
+if [[ $pat_tf == 0 ]]; then
+  resync=0x0
+fi
+
+echo resync:$resync
 
 
 for i in $(${prefix}roc-list-cards | grep CRU | awk '{print $1}')
