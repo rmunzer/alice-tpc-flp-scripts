@@ -1,5 +1,5 @@
 run=$1
-period=LHC23zv_TPC
+period=$2
 num_files=2
 folder=/alice/data/2023/${period}/${run}
 echo Folder 1: $folder
