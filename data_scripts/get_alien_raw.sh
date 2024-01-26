@@ -1,6 +1,6 @@
 run=$1
-period=LHC23zv_TPC
-num_files=2
+period=LHC23zzo_TPC
+num_files=5
 folder=/alice/data/2023/${period}/${run}
 echo Folder 1: $folder
 sub1=`alien.py ls ${folder}`
@@ -32,5 +32,6 @@ done < /tmp/alien_raw_folder
 
 
 counter=0
+ls /tmp/*${1}* > run_${1}
 rm /tmp/alien_raw_files
 rm /tmp/alien_raw_folder
