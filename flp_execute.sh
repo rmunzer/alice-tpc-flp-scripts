@@ -52,7 +52,7 @@ usageAndExit() {
   pat_new=0
 #  pat_tf=12C
   pat_tf=A
-#  pat_tf=0xfffffff
+#  pat_tf=ffff
   pat_bc=0x1f
   cru_config=0
   pp_read=0
