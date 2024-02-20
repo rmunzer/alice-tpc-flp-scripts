@@ -55,7 +55,7 @@ if [[ -z "$run" ]]; then
 fi
 
 # ===| command building and execution |=========================================
-cmd="root.exe -l -n -q -x ~/tpc_flp_scripts/data_scripts/ctp/GetScalersForRun.C++sk'($run,$fill,1)'"
+cmd="alias c++='gcc -xc++ -lstdc++ -shared-libgcc';root.exe -l -n -q -x ~/tpc_flp_scripts/data_scripts/ctp/GetScalersForRun.C++sk'(\"[$run]\",$fill)'"
 
 echo "running: $cmd"
 eval $cmd

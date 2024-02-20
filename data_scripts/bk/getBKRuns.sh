@@ -6,7 +6,7 @@
 # Version: v1 13/06/2023
 # =========================================================================
 # Temporary files used to cache the detailed data
-DATA="/tmp/`basename $0`.$$"
+DATA="json-`basename $0`.$$"
 
 # List of ALICE detectors
 # DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD TST ZDC"
@@ -100,6 +100,9 @@ LINE+=$(printf "# FLPs${SEP}")
 LINE+=$(printf "# EPNs${SEP}")
 LINE+=$(printf "CTF File Size${SEP}")
 LINE+=$(printf "TF File Size${SEP}")
+LINE+=$(printf "ZDC Trigger${SEP}")
+LINE+=$(printf "Mu${SEP}")
+LINE+=$(printf "ZDC Rate${SEP}")
 for d in ${DETS}; do
    LINE+=$(printf "$d IN${SEP}")
 done
@@ -143,14 +146,57 @@ printStr() {
    printf "${SEP}"
 }
 
-n=${NRUNS}
-echo $RUNS
-for runNumber in ${RUNS}; do
+
+if [ $getCTP = 1 ];
+then
+	n=${NRUNS}
+	ctpruns=`echo $RUNS | sed -e "s/\s\+/,/g"`
+	runarray=(${RUNS})
+	ctp_data.sh -r $ctpruns -f $fillNo > ctp_output.txt
+	rate=`grep "ZNC:" ctp_output.txt | cut -d" " -f 1 | cut -d: -f3 `
+	integral=`grep "ZNC:" ctp_output.txt | cut -d" " -f 2 | cut -d: -f2 `
+	mu=`grep "ZNC:" ctp_output.txt | cut -d" " -f 3 | cut -d: -f2 `
+	echo "[" > vals.json
+	RUNS2="`jq .data[].runNumber ${DATA}`"
+	n=${NRUNS}
+	for runNumber  in $RUNS2 ; do
+	   n=$((n-1))
+	   
+	   rate_temp=`echo $rate | cut -f$((n+1)) -d" "`
+	   integral_temp=`echo $integral | cut -f$((n+1)) -d" "`
+	   mu_temp=`echo $mu | cut -f$((n+1)) -d" "`
+	   #echo $n $runNumber $rate_temp $integral_temp $mu_temp
+	   echo "{\"rate\": \"$rate_temp\",\"trigger\": \"$integral_temp\",\"mu\": \"$mu_temp\",\"runNumber\": $runNumber" >> vals.json
+	   if [ $n = 0 ]; then
+			echo "}" >> vals.json
+	   else
+			echo "}," >> vals.json
+		fi
+	done 
+	echo "]" >> vals.json
+	selection=$selection,24,25,26 
+cat > merge.jq << EOF 
+def dict(f):
+  reduce .[] as \$o ({}; .[\$o | f | tostring] = \$o ) ;
+
+(\$bar | dict(.runNumber)) as \$dict
+| .data |= map(. + (\$dict[.runNumber|tostring] ))
+EOF
+
+jq -f merge.jq --argfile bar vals.json ${DATA} > ${DATA}_tmp2
+cat ${DATA}_tmp2 > ${DATA}
+rm ${DATA}_tmp2 
+rm merge.jq
+rm vals.json
+
+fi
+
+
+for runNumber  in ${RUNS}; do
    n=$((n-1))
    
    (( dbg )) && echo "=============================================================================" >&2
    (( dbg )) && jq .data[$n] ${DATA} >&2
-   
    if (( `jq .data[$n].runNumber ${DATA}` != runNumber )); then
      printf "Run number mismatch, fatal error\n" >&2
      exit 1
@@ -183,45 +229,45 @@ for runNumber in ${RUNS}; do
 
    LINE=""
    
-   LINE+=$(printf "${runNumber}${SEP}")
+   LINE+=$(printf "${runNumber}${SEP}")   # Par: 1
      
-   LINE+=$(timeToDate `jq .data[$n].timeO2Start ${DATA}`)
-   LINE+=$(timeToDate `jq .data[$n].timeO2End ${DATA}`)
+   LINE+=$(timeToDate `jq .data[$n].timeO2Start ${DATA}`) # Par: 2
+   LINE+=$(timeToDate `jq .data[$n].timeO2End ${DATA}`) # Par: 3
      
-   LINE+=$(timeToDate `jq .data[$n].startTime ${DATA}`)
-   LINE+=$(timeToDate `jq .data[$n].endTime ${DATA}`)
+   LINE+=$(timeToDate `jq .data[$n].startTime ${DATA}`) # Par: 4
+   LINE+=$(timeToDate `jq .data[$n].endTime ${DATA}`) # Par: 5
      
-   LINE+=$(timeToDate `jq .data[$n].timeTrgStart ${DATA}`)
-   LINE+=$(timeToDate `jq .data[$n].timeTrgEnd ${DATA}`)
+   LINE+=$(timeToDate `jq .data[$n].timeTrgStart ${DATA}`) # Par: 6
+   LINE+=$(timeToDate `jq .data[$n].timeTrgEnd ${DATA}`) # Par: 7
      
    #(( runDuration > 0 )) && printf "%d" ${runDuration}
-   LINE+=$(printf '%02d:%02d:%02d' $((runDuration/3600)) $((runDuration%3600/60)) $((runDuration%60)))
-   LINE+=$(printf "${SEP}")
+   LINE+=$(printf '%02d:%02d:%02d' $((runDuration/3600)) $((runDuration%3600/60)) $((runDuration%60))) # Par: 8
+   LINE+=$(printf "${SEP}") 
      
    #printf "%s${SEP}" "`jq .data[$n].environmentId ${DATA}`"
-   LINE+=$(printStr `jq .data[$n].environmentId ${DATA}`)
+   LINE+=$(printStr `jq .data[$n].environmentId ${DATA}`)  # Par: 9
      
    #printf "%s${SEP}" "`jq .data[$n].runType.name ${DATA}`"
-   LINE+=$(printStr `jq .data[$n].runType.name ${DATA}`)
+   LINE+=$(printStr `jq .data[$n].runType.name ${DATA}`) # Par: 10
      
    #printf "%s${SEP}" "`jq .data[$n].definition ${DATA}`"
-   LINE+=$(printStr `jq .data[$n].definition ${DATA}`)
+   LINE+=$(printStr `jq .data[$n].definition ${DATA}`) # Par: 11
      
    #printf "%s${SEP}" "`jq .data[$n].runQuality ${DATA}`"
-   LINE+=$(printStr `jq .data[$n].runQuality ${DATA}`)
+   LINE+=$(printStr `jq .data[$n].runQuality ${DATA}`) # Par: 12
      
-   LINE+=$(printNum `jq .data[$n].fillNumber ${DATA}`)
-   LINE+=$(printStr `jq .data[$n].lhcFill.fillingSchemeName ${DATA}`)
+   LINE+=$(printNum `jq .data[$n].fillNumber ${DATA}`) # Par: 13
+   LINE+=$(printStr `jq .data[$n].lhcFill.fillingSchemeName ${DATA}`) # Par: 14
      
-   LINE+=$(printNum `jq .data[$n].lhcFill.stableBeamsDuration ${DATA}`)
+   LINE+=$(printNum `jq .data[$n].lhcFill.stableBeamsDuration ${DATA}`) # Par: 15
    stableBeamsDuration=$(( `jq .data[$n].stableBeamsDuration ${DATA}` / 1000 ))
    #printf '%02d:%02d:%02d' $((stableBeamsDuration/3600)) $((stableBeamsDuration%3600/60)) $((stableBeamsDuration%60))
    #printf "${SEP}"
      
    #printf "%s${SEP}" "`jq .data[$n].lhcPeriod ${DATA}`"
-   LINE+=$(printStr `jq .data[$n].lhcPeriod ${DATA}`)
+   LINE+=$(printStr `jq .data[$n].lhcPeriod ${DATA}`) # Par: 16
      
-   LINE+=$(printf "%s${SEP}" "`jq .data[$n].pdpWorkflowParameters ${DATA}`")
+   LINE+=$(printf "%s${SEP}" "`jq .data[$n].pdpWorkflowParameters ${DATA}`") 
      
    eorReasons="`jq .data[$n].eorReasons ${DATA}`"
    LINE+=$(printf "\"%s\"${SEP}" "`sanitize ${eorReasons}`")
@@ -234,9 +280,14 @@ for runNumber in ${RUNS}; do
    #printf "%d${SEP}" `jq .data[$n].nEpns ${DATA}`
    LINE+=$(printNum `jq .data[$n].nEpns ${DATA}`)
      
-   LINE+=$(printNum `jq .data[$n].ctfFileSize ${DATA}`)
+   LINE+=$(printNum `jq .data[$n].ctfFileSize ${DATA}`)  # Par: 22
      
-   LINE+=$(printNum `jq .data[$n].tfFileSize ${DATA}`)
+   LINE+=$(printNum `jq .data[$n].tfFileSize ${DATA}`) # Par: 23
+   
+
+   LINE+=$(printNum `jq .data[$n].trigger ${DATA}`)  # Par: 24
+   LINE+=$(printNum `jq .data[$n].mu ${DATA}`) # Par: 25 
+   LINE+=$(printNum `jq .data[$n].rate ${DATA}`)  # Par: 26
      
    detectors="`jq .data[$n].detectors ${DATA}`"
    for d in ${DETS}; do
@@ -252,17 +303,10 @@ for runNumber in ${RUNS}; do
    if [ x"$selection" = "x" ]; then
        echo $LINE | tr "$SEP" "${SEP_CSV}"
    else
-	   run=`echo $LINE | cut -d"$SEP" -f 1`
-	  if [ $getCTP = 1 ]; then
-			ctp=`ctp_data.sh -r $run -f$fillNo | grep "ZNC:Rate"`
-	   fi
-	   echo $run $fillNo $ctp
-	   Rate=`echo $ctp | cut -d" " -f 1`
-	   Integral=`echo $ctp | cut -d" " -f 2`
-	   mu=`echo $ctp | cut -d" " -f 3`
-	   echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}" , $Rate , $Integral , $mu
+	   echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
    fi
    
 done
 
-#rm -f ${DATA}
+rm -f ${DATA}
+
