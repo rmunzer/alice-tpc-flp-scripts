@@ -11,3 +11,11 @@ pat_script.sh
 calib_files
 data_scripts/run*
 firmware_versions
+data_scripts/SAC/log
+data_scripts/SAC/rawdata/
+data_scripts/ctp/CMakeFiles/
+data_scripts/ctp/GetScalersForRun
+data_scripts/ctp/GetScalersForRun_C_ACLiC_dict38e1c3fcfb_dictUmbrella.h
+data_scripts/ctp/GetScalersForRun_C_ACLiC_dict6de234914d_dictContent.h
+data_scripts/pulser/tfs.txt
+
