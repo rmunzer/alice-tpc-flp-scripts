@@ -17,7 +17,22 @@
 #include <TMath.h>
 using namespace o2::ctp;
 
-
+void Print_Output(string source,int run,double_t Trun,double_t integral,double_t nbc){
+		double_t frev=11245;
+		double_t sigmaratio=28;
+		double_t rate = 0.;
+		if(Trun>0) rate=integral / Trun;
+		double_t rat = 0.;
+		if(Trun>0 && nbc>0 && frev >0 ) rat=integral / Trun / nbc / frev;
+		double_t mu = -TMath::Log(1 - rat);
+		double_t pp = 0.;
+		if(mu>0) pp=1 - mu / (TMath::Exp(mu) - 1);
+		double_t ratepp = mu * nbc * frev;
+		double_t integralpp = ratepp * Trun;
+		std::cout << run << "-"<<source<<":";
+		std::cout << "Rate:" << rate / sigmaratio << " Integral:" << integral << " mu:" << mu << " Pileup prob:" << pp;
+		std::cout << " Integralpp:" << integralpp << " Ratepp:" << ratepp / sigmaratio << std::endl;
+}
 void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 {
 	std::size_t posOpen = runNumberList.find("[");
@@ -68,10 +83,14 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	auto bfilling = lhcifdata->getBunchFilling();
 	std::vector<int> bcs = bfilling.getFilledBCs();
 	std::cout << "Number of interacting bc:" << bcs.size() << std::endl;
-	//
-	ccdbMgr.setURL("http://ccdb-test.cern.ch:8080");
 	std::cout << " Get all run for that fill " << endl;
 	for(uint j=0;j<runNumbers.size();j++){
+
+		
+		
+		
+		
+		
 		std::string srun = std::to_string(runNumbers[j]);
 		metadata.clear(); // can be empty
 		metadata["runNumber"] = srun;
@@ -79,23 +98,33 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 		auto ctpscalers = ccdbMgr.getSpecific<CTPRunScalers>(mCCDBPathCTPScalers, timeStamp_list[j], metadata);
 		if (ctpscalers == nullptr) {
 			LOG(info) << "CTPRunScalers not in database, timestamp:" <<  timeStamp_list[j];
-			std::cout << runNumbers[j] << "-ZNC:";
-			std::cout << "Rate:" << 0 << " Integral:" << 0 << " mu:" << 0 << " Pileup prob:" << 0;
-			std::cout << " Integralpp:" << 0 << " Ratepp:" << 0 << std::endl;
+			Print_Output("ZNC",runNumbers[j],0,0,0);
+			Print_Output("FT0",runNumbers[j],0,0,0);
 			continue;
 		}		
 		
 		auto ctpcfg = ccdbMgr.getSpecific<CTPConfiguration>(mCCDBPathCTPConfig,  timeStamp_list[j], metadata);
 		if (ctpcfg == nullptr) {
 			LOG(info) << "CTPRunConfig not in database, timestamp:" <<  timeStamp_list[j];
+			Print_Output("ZNC",runNumbers[j],0,0,0);
+			Print_Output("FT0",runNumbers[j],0,0,0);
 			continue;
 		}
 		std::cout << "all good" << std::endl;
-		if(runNumbers[j])>544448){
+		if(runNumbers[j]>544448){
 			ctpscalers->convertRawToO2();
+			std::vector<CTPScalerRecordO2> recs = ctpscalers->getScalerRecordO2();
+			if (recs[0].scalersInps.size() == 48) {
+				int inp = 26;
+				Print_Output("ZNC",runNumbers[j],recs[recs.size() - 1].epochTime-recs[0].epochTime,recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1],bcs.size());
+				inp = 2;
+				Print_Output("FT0",runNumbers[j],recs[recs.size() - 1].epochTime-recs[0].epochTime,recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1],bcs.size());
+			}
+		}
+		else{
 			std::vector<CTPClass> ctpcls = ctpcfg->getCTPClasses();
-			// std::vector<int> clslist = ctpcfg->getTriggerClassList();
-			std::vector<uint32_t> clslist = ctpscalers->getClassIndexes();
+			std::vector<int> clslist = ctpcfg->getTriggerClassList();
+			//std::vector<uint32_t> clslist = ctpscalers->getClassIndexes();
 			std::map<int, int> clsIndexToScaler;
 			std::cout << "Classes:";
 			int i = 0;
@@ -110,6 +139,7 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 			int vch = 255;
 			int iznc = 255;
 			for (auto const& cls : ctpcls) {
+				std::cout << cls.name <<endl;
 				if (cls.name.find("CMTVXTSC-B-NOPF-CRU") != std::string::npos) {
 					tsc = cls.getIndex();
 					std::cout << cls.name << ":" << tsc << std::endl;
@@ -128,60 +158,18 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 					std::cout << cls.name << ":" << iznc << std::endl;
 				}
 			}
-		
-		
-			double_t nbc = bcs.size();
-			double_t frev = 11245;
-			double_t sigmaratio = 28.;
-			double_t time0 = 0.;
-			double_t timeL = 0.;
-			double_t Trun = 0.;
-			double_t integral = 0.;
-			double_t rate = 0.;
-			double_t rat =  0.;
-			double_t mu = 0.;
-			double_t pp =  0.;
-			double_t ratepp =  0.;
-			double_t integralpp = 0.;
-		
-		
+			if( tsc==255 && tce==255 && vch==255){
+					continue;
+					Print_Output("ZNC",runNumbers[j],0,0,0);
+					Print_Output("FT0",runNumbers[j],0,0,0);
+			}
+			ctpscalers->convertRawToO2();
+			// inp = 2;
 			std::vector<CTPScalerRecordO2> recs = ctpscalers->getScalerRecordO2();
-		
-			int inp = 26;
-			if (recs[0].scalersInps.size() == 48) {
-				time0 = recs[0].epochTime;
-				timeL = recs[recs.size() - 1].epochTime;
-				Trun = timeL - time0;
-				integral = recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1];
-				rate = integral / Trun;
-				rat = integral / Trun / nbc / frev;
-				mu = -TMath::Log(1 - rat);
-				pp = 1 - mu / (TMath::Exp(mu) - 1);
-				ratepp = mu * nbc * frev;
-				integralpp = ratepp * Trun;
+			for(int inp=1;inp<20;inp++){
+				Print_Output("FT0"+std::to_string(inp),runNumbers[j],recs[recs.size() - 1].epochTime-recs[0].epochTime,recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1],bcs.size());
 			}
-			std::cout << runNumbers[j] << "-ZNC:";
-			std::cout << "Rate:" << rate / sigmaratio << " Integral:" << integral << " mu:" << mu << " Pileup prob:" << pp;
-			std::cout << " Integralpp:" << integralpp << " Ratepp:" << ratepp / sigmaratio << std::endl;
-		
-			inp = 2;
-			if (recs[0].scalersInps.size() == 48) {
-				time0 = recs[0].epochTime;
-				timeL = recs[recs.size() - 1].epochTime;
-				Trun = timeL - time0;
-				integral = recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1];
-				rate = integral / Trun;
-				rat = integral / Trun / nbc / frev;
-				mu = -TMath::Log(1 - rat);
-				pp = 1 - mu / (TMath::Exp(mu) - 1);
-				ratepp = mu * nbc * frev;
-				integralpp = ratepp * Trun;
-			}
-			std::cout << runNumbers[j] << "-FT0:";
-			std::cout << "Rate:" << rate / sigmaratio << " Integral:" << integral << " mu:" << mu << " Pileup prob:" << pp;
-			std::cout << " Integralpp:" << integralpp << " Ratepp:" << ratepp / sigmaratio << std::endl;
-		
-			if (tsc != 255) {
+			if (tsc != 255 ) {
 				std::cout << "TSC:";
 				ctpscalers->printClassBRateAndIntegral(clsIndexToScaler[tsc] + 1);
 			}
@@ -205,3 +193,5 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 		}
 	}
 }
+
+
