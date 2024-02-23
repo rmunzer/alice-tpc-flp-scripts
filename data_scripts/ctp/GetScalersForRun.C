@@ -33,6 +33,15 @@ void Print_Output(string source,int run,double_t Trun,double_t integral,double_t
 		std::cout << "Rate:" << rate / sigmaratio << " Integral:" << integral << " mu:" << mu << " Pileup prob:" << pp;
 		std::cout << " Integralpp:" << integralpp << " Ratepp:" << ratepp / sigmaratio << std::endl;
 }
+void Print_Output(string source,int run,std::vector<CTPScalerRecordO2> recs,int inp,double_t nbc){
+	
+	double_t first=recs[0].scalersInps[inp - 1];
+	double_t last=recs[recs.size() - 1].scalersInps[inp - 1];
+	double_t integral=last-first;
+	if(first>last) integral=first-last+pow(2,32);
+	Print_Output(source,run,recs[recs.size() - 1].epochTime-recs[0].epochTime,integral,nbc);
+	
+}
 void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 {
 	std::size_t posOpen = runNumberList.find("[");
@@ -56,11 +65,15 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	std::string mCCDBPathCTPScalers = "CTP/Calib/Scalers";
 	std::string mCCDBPathCTPConfig = "CTP/Config/Config";
 	auto& ccdbMgr = o2::ccdb::BasicCCDBManager::instance();
+	ccdbMgr.setURL("http://o2-ccdb.internal");
+	
+	std::cout << "CCDB Manager created:" << std::endl;
+
 	uint64_t timeStamp=0;
 	vector<uint64_t> timeStamp_list;
 	for(uint j=0;j<runNumbers.size();j++){
 			auto soreor = ccdbMgr.getRunDuration(runNumbers[j],false);	
-			cout<<"Run: "<<runNumbers[j]<<" "<<soreor.second<<" "<<soreor.first<<" "<<timeStamp<<endl;
+			cout<<"Run: "<<runNumbers[j]<<" "<<soreor.second<<" "<<soreor.first<<" "<<soreor.second - soreor.first<<endl;
 			uint64_t timeStamp_temp = 0;
 			if(soreor.second>0 && soreor.first>0)timeStamp_temp=(soreor.second - soreor.first) / 2 + soreor.first;
 			timeStamp_list.push_back(timeStamp_temp );
@@ -79,6 +92,7 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	std::string sfill = std::to_string(fillN);
 	std::map<string, string> metadata;
 	metadata["fillNumber"] = sfill;
+	ccdbMgr.setURL("http://o2-ccdb.internal");
 	auto lhcifdata = ccdbMgr.getSpecific<o2::parameters::GRPLHCIFData>("GLO/Config/GRPLHCIF", timeStamp, metadata);
 	auto bfilling = lhcifdata->getBunchFilling();
 	std::vector<int> bcs = bfilling.getFilledBCs();
@@ -116,9 +130,11 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 			std::vector<CTPScalerRecordO2> recs = ctpscalers->getScalerRecordO2();
 			if (recs[0].scalersInps.size() == 48) {
 				int inp = 26;
-				Print_Output("ZNC",runNumbers[j],recs[recs.size() - 1].epochTime-recs[0].epochTime,recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1],bcs.size());
+				
+				
+				Print_Output("ZNC",runNumbers[j],recs,26,bcs.size());
 				inp = 2;
-				Print_Output("FT0",runNumbers[j],recs[recs.size() - 1].epochTime-recs[0].epochTime,recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1],bcs.size());
+				Print_Output("ZNC",runNumbers[j],recs,2,bcs.size());
 			}
 		}
 		else{

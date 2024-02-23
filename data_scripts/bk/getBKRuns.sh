@@ -6,7 +6,8 @@
 # Version: v1 13/06/2023
 # =========================================================================
 # Temporary files used to cache the detailed data
-DATA="json-`basename $0`.$$"
+DATA="/tmp/json-`basename $0`.$$"
+DATA_CTP="/tmp/json_ctp-`basename $0`.$$"
 
 # List of ALICE detectors
 # DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD TST ZDC"
@@ -74,8 +75,19 @@ fi
 URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999"
 #(( dbg )) && 
 printf "URL:\"%s\"\n" "${URL}" >&2
-
-wget -q "${URL}" -O ${DATA}
+hostname=`hostname`
+if [[ $hostname == *"alio2-cr1"* ]]; then
+	echo "Run internally"
+	declare -x http_proxy="10.161.69.44:8080"
+	declare -x https_proxy="10.161.69.44:8080"
+	echo wget -q "${URL}" --no-check-certificate -O ${DATA}
+	wget -q "${URL}" --no-check-certificate -O ${DATA}
+	declare -x http_proxy=""
+	declare -x https_proxy=""
+else
+	echo "Run externally"
+	wget -q "${URL}"  -O ${DATA}
+fi
 
 LINE+=$(printf "Run Number${SEP}")
 LINE+=$(printf "O2 start${SEP}")
@@ -152,10 +164,12 @@ then
 	n=${NRUNS}
 	ctpruns=`echo $RUNS | sed -e "s/\s\+/,/g"`
 	runarray=(${RUNS})
-	ctp_data.sh -r $ctpruns -f $fillNo > ctp_output.txt
-	rate=`grep "ZNC:" ctp_output.txt | cut -d" " -f 1 | cut -d: -f3 `
-	integral=`grep "ZNC:" ctp_output.txt | cut -d" " -f 2 | cut -d: -f2 `
-	mu=`grep "ZNC:" ctp_output.txt | cut -d" " -f 3 | cut -d: -f2 `
+	
+	echo ctp_data.sh -r $ctpruns -f $fillNo
+	ctp_data.sh -r $ctpruns -f $fillNo > ${DATA_CTP}
+	rate=`grep "ZNC:" ${DATA_CTP}| cut -d" " -f 1 | cut -d: -f3 `
+	integral=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 2 | cut -d: -f2 `
+	mu=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 3 | cut -d: -f2 `
 	echo "[" > vals.json
 	RUNS2="`jq .data[].runNumber ${DATA}`"
 	n=${NRUNS}
