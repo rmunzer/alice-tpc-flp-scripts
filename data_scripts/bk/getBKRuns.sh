@@ -38,7 +38,9 @@ fillNo=0
 selection=""
 goodOnly=0
 getCTP=0
-while getopts f:t:F:D:s:gdhc? flag; do
+ft0=0
+zdc=0
+while getopts f:t:F:D:s:gdhclz? flag; do
    case "${flag}" in
       f) from="${OPTARG}";;
       t) to="${OPTARG}";;
@@ -48,6 +50,8 @@ while getopts f:t:F:D:s:gdhc? flag; do
       s) selection="${OPTARG}";;
       g) goodOnly=1;;
 	  c) getCTP=1;;
+	  l) ft0=1;;
+	  z) zdc=1;;
       h|*) usage; exit 1;;
    esac
 done
@@ -170,6 +174,9 @@ then
 	rate=`grep "ZNC:" ${DATA_CTP}| cut -d" " -f 1 | cut -d: -f3 `
 	integral=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 2 | cut -d: -f2 `
 	mu=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 3 | cut -d: -f2 `
+	rate_ft0=`grep "FT0:" ${DATA_CTP}| cut -d" " -f 1 | cut -d: -f3 `
+	integral_ft0=`grep "FT0:" ${DATA_CTP} | cut -d" " -f 2 | cut -d: -f2 `
+	mu_ft0=`grep "FT0:" ${DATA_CTP} | cut -d" " -f 3 | cut -d: -f2 `
 	echo "[" > vals.json
 	RUNS2="`jq .data[].runNumber ${DATA}`"
 	n=${NRUNS}
@@ -179,8 +186,11 @@ then
 	   rate_temp=`echo $rate | cut -f$((n+1)) -d" "`
 	   integral_temp=`echo $integral | cut -f$((n+1)) -d" "`
 	   mu_temp=`echo $mu | cut -f$((n+1)) -d" "`
+	   rate_ft0_temp=`echo $rate_ft0 | cut -f$((n+1)) -d" "`
+	   integral_ft0_temp=`echo $integral_ft0 | cut -f$((n+1)) -d" "`
+	   mu_ft0_temp=`echo $mu_ft0 | cut -f$((n+1)) -d" "`
 	   #echo $n $runNumber $rate_temp $integral_temp $mu_temp
-	   echo "{\"rate\": \"$rate_temp\",\"trigger\": \"$integral_temp\",\"mu\": \"$mu_temp\",\"runNumber\": $runNumber" >> vals.json
+	   echo "{\"rate\": \"$rate_temp\",\"trigger\": \"$integral_temp\",\"mu\": \"$mu_temp\",\"rate_ft0\": \"$rate_ft0_temp\",\"trigger_ft0\": \"$integral_ft0_temp\",\"mu_ft0\": \"$mu_ft0_temp\",\"runNumber\": $runNumber" >> vals.json
 	   if [ $n = 0 ]; then
 			echo "}" >> vals.json
 	   else
@@ -188,7 +198,14 @@ then
 		fi
 	done 
 	echo "]" >> vals.json
-	selection=$selection,24,25,26 
+	if [ $zdc = 1 ];
+	then
+		selection=$selection,24,25,26 
+	fi
+	if [ $ft0 = 1 ];
+	then
+		selection=$selection,27,28,29 
+	fi
 cat > merge.jq << EOF 
 def dict(f):
   reduce .[] as \$o ({}; .[\$o | f | tostring] = \$o ) ;
@@ -302,6 +319,11 @@ for runNumber  in ${RUNS}; do
    LINE+=$(printNum `jq .data[$n].trigger ${DATA}`)  # Par: 24
    LINE+=$(printNum `jq .data[$n].mu ${DATA}`) # Par: 25 
    LINE+=$(printNum `jq .data[$n].rate ${DATA}`)  # Par: 26
+   
+      LINE+=$(printNum `jq .data[$n].trigger_ft0 ${DATA}`)  # Par: 27
+   LINE+=$(printNum `jq .data[$n].mu_ft0 ${DATA}`) # Par: 28
+   LINE+=$(printNum `jq .data[$n].rate_ft0 ${DATA}`)  # Par: 29
+   LINE+=$(printStr `jq .data[$n].lhcFill.beamType ${DATA}`) # Par: 30
      
    detectors="`jq .data[$n].detectors ${DATA}`"
    for d in ${DETS}; do
@@ -317,7 +339,16 @@ for runNumber  in ${RUNS}; do
    if [ x"$selection" = "x" ]; then
        echo $LINE | tr "$SEP" "${SEP_CSV}"
    else
-	   echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
+	   beamtype=`echo $LINE | cut -d"$SEP" -f 30 | tr "$SEP" "${SEP_CSV}"`
+	   echo $beamtype
+	   if [[ $beamtype == *"PROTON"* ]]; then
+			echo $LINE | cut -d"$SEP" -f $selection,27,28,29 | tr "$SEP" "${SEP_CSV}"
+	   elif [[ $beamtype == *"PB"* ]]; then
+			echo $LINE | cut -d"$SEP" -f $selection,24,25,26 | tr "$SEP" "${SEP_CSV}"
+	   else
+			echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
+	   fi
+	   
    fi
    
 done

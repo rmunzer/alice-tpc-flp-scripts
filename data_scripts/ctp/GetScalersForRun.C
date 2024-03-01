@@ -19,7 +19,8 @@ using namespace o2::ctp;
 
 void Print_Output(string source,int run,double_t Trun,double_t integral,double_t nbc){
 		double_t frev=11245;
-		double_t sigmaratio=28;
+		double_t sigmaratio=1.;
+		if(source=="ZNC") sigmaratio=28;
 		double_t rate = 0.;
 		if(Trun>0) rate=integral / Trun;
 		double_t rat = 0.;
@@ -30,13 +31,22 @@ void Print_Output(string source,int run,double_t Trun,double_t integral,double_t
 		double_t ratepp = mu * nbc * frev;
 		double_t integralpp = ratepp * Trun;
 		std::cout << run << "-"<<source<<":";
-		std::cout << "Rate:" << rate / sigmaratio << " Integral:" << integral << " mu:" << mu << " Pileup prob:" << pp;
-		std::cout << " Integralpp:" << integralpp << " Ratepp:" << ratepp / sigmaratio << std::endl;
+		std::cout << "Rate:" << rate / sigmaratio << " Integral:" << (unsigned long long)integral << " mu:" << mu << " Pileup prob:" << pp;
+		std::cout << " Integralpp:" << integralpp << " Ratepp:" << ratepp / sigmaratio << " Duration:" << Trun << std::endl;
 }
 void Print_Output(string source,int run,std::vector<CTPScalerRecordO2> recs,int inp,double_t nbc){
 	
 	double_t first=recs[0].scalersInps[inp - 1];
 	double_t last=recs[recs.size() - 1].scalersInps[inp - 1];
+	double_t integral=last-first;
+	if(first>last) integral=first-last+pow(2,32);
+	Print_Output(source,run,recs[recs.size() - 1].epochTime-recs[0].epochTime,integral,nbc);
+	
+}
+void Print_Output_Class(string source,int run,std::vector<CTPScalerRecordO2> recs,int inp,double_t nbc){
+	
+	double_t first=recs[0].scalers[inp - 1].lmBefore;
+	double_t last=recs[recs.size() - 1].scalers[inp - 1].lmBefore;
 	double_t integral=last-first;
 	if(first>last) integral=first-last+pow(2,32);
 	Print_Output(source,run,recs[recs.size() - 1].epochTime-recs[0].epochTime,integral,nbc);
@@ -99,24 +109,19 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	std::cout << "Number of interacting bc:" << bcs.size() << std::endl;
 	std::cout << " Get all run for that fill " << endl;
 	for(uint j=0;j<runNumbers.size();j++){
-
-		
-		
-		
-		
-		
 		std::string srun = std::to_string(runNumbers[j]);
 		metadata.clear(); // can be empty
 		metadata["runNumber"] = srun;
 		ccdbMgr.setFatalWhenNull(false);
+		cout<<mCCDBPathCTPScalers<<endl;
 		auto ctpscalers = ccdbMgr.getSpecific<CTPRunScalers>(mCCDBPathCTPScalers, timeStamp_list[j], metadata);
 		if (ctpscalers == nullptr) {
 			LOG(info) << "CTPRunScalers not in database, timestamp:" <<  timeStamp_list[j];
 			Print_Output("ZNC",runNumbers[j],0,0,0);
 			Print_Output("FT0",runNumbers[j],0,0,0);
 			continue;
-		}		
-		
+		}			
+		cout<<mCCDBPathCTPConfig<<endl;
 		auto ctpcfg = ccdbMgr.getSpecific<CTPConfiguration>(mCCDBPathCTPConfig,  timeStamp_list[j], metadata);
 		if (ctpcfg == nullptr) {
 			LOG(info) << "CTPRunConfig not in database, timestamp:" <<  timeStamp_list[j];
@@ -125,87 +130,40 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 			continue;
 		}
 		std::cout << "all good" << std::endl;
+		ctpscalers->convertRawToO2();
+		std::vector<CTPScalerRecordO2> recs = ctpscalers->getScalerRecordO2();
 		if(runNumbers[j]>544448){
-			ctpscalers->convertRawToO2();
-			std::vector<CTPScalerRecordO2> recs = ctpscalers->getScalerRecordO2();
-			if (recs[0].scalersInps.size() == 48) {
-				int inp = 26;
-				
-				
-				Print_Output("ZNC",runNumbers[j],recs,26,bcs.size());
-				inp = 2;
-				Print_Output("ZNC",runNumbers[j],recs,2,bcs.size());
-			}
+			if (recs[0].scalersInps.size() == 48)  Print_Output("ZNC",runNumbers[j],recs,26,bcs.size());
 		}
 		else{
-			std::vector<CTPClass> ctpcls = ctpcfg->getCTPClasses();
-			std::vector<int> clslist = ctpcfg->getTriggerClassList();
-			//std::vector<uint32_t> clslist = ctpscalers->getClassIndexes();
-			std::map<int, int> clsIndexToScaler;
-			std::cout << "Classes:";
-			int i = 0;
-			for (auto const& cls : clslist) {
-				std::cout << cls << " ";
-				clsIndexToScaler[cls] = i;
-				i++;
+			Print_Output("ZNC",runNumbers[j],0,0,0);
+		}
+		std::vector<CTPClass> ctpcls = ctpcfg->getCTPClasses();
+		std::vector<int> clslist = ctpcfg->getTriggerClassList();
+		//std::vector<uint32_t> clslist = ctpscalers->getClassIndexes();
+		std::map<int, int> clsIndexToScaler;
+		//std::cout << "Classes:";
+		int i = 0;
+		for (auto const& cls : clslist) {
+			//std::cout << cls << " ";
+			clsIndexToScaler[cls] = i;
+			i++;
+		}
+		std::cout << std::endl;
+		int ft0 = 255;
+		for (auto const& cls : ctpcls) {
+		//	std::cout << cls.name <<endl;
+			if (cls.name.find("CMTVX-B-NOPF") != std::string::npos) {
+				ft0 = cls.getIndex();
+				std::cout << cls.name << ":" << ft0 << std::endl;
+				break;
 			}
-			std::cout << std::endl;
-			int tsc = 255;
-			int tce = 255;
-			int vch = 255;
-			int iznc = 255;
-			for (auto const& cls : ctpcls) {
-				std::cout << cls.name <<endl;
-				if (cls.name.find("CMTVXTSC-B-NOPF-CRU") != std::string::npos) {
-					tsc = cls.getIndex();
-					std::cout << cls.name << ":" << tsc << std::endl;
-				}
-				if (cls.name.find("CMTVXTCE-B-NOPF-CRU") != std::string::npos) {
-					tce = cls.getIndex();
-					std::cout << cls.name << ":" << tce << std::endl;
-				}
-				if (cls.name.find("CMTVXVCH-B-NOPF-CRU") != std::string::npos) {
-					vch = cls.getIndex();
-					std::cout << cls.name << ":" << vch << std::endl;
-				}
-				// if (cls.name.find("C1ZNC-B-NOPF-CRU") != std::string::npos) {
-				if (cls.name.find("C1ZNC-B-NOPF") != std::string::npos) {
-					iznc = cls.getIndex();
-					std::cout << cls.name << ":" << iznc << std::endl;
-				}
-			}
-			if( tsc==255 && tce==255 && vch==255){
-					continue;
-					Print_Output("ZNC",runNumbers[j],0,0,0);
-					Print_Output("FT0",runNumbers[j],0,0,0);
-			}
-			ctpscalers->convertRawToO2();
-			// inp = 2;
-			std::vector<CTPScalerRecordO2> recs = ctpscalers->getScalerRecordO2();
-			for(int inp=1;inp<20;inp++){
-				Print_Output("FT0"+std::to_string(inp),runNumbers[j],recs[recs.size() - 1].epochTime-recs[0].epochTime,recs[recs.size() - 1].scalersInps[inp - 1] - recs[0].scalersInps[inp - 1],bcs.size());
-			}
-			if (tsc != 255 ) {
-				std::cout << "TSC:";
-				ctpscalers->printClassBRateAndIntegral(clsIndexToScaler[tsc] + 1);
-			}
-			if (tce != 255) {
-				std::cout << "TCE:";
-				ctpscalers->printClassBRateAndIntegral(clsIndexToScaler[tce] + 1);
-			}
-			// std::cout << "TCE input:" << ctpscalers->printInputRateAndIntegral(5) << std::endl;;
-			if (vch != 255) {
-				std::cout << "VCH:";
-				ctpscalers->printClassBRateAndIntegral(clsIndexToScaler[vch] + 1);
-			}
-			if (iznc != 255) {
-				std::cout << "ZNC class:";
-				// uint64_t integral = recs[recs.size() - 1].scalers[iznc].l1After - recs[0].scalers[iznc].l1After;
-				auto zncrate = ctpscalers->getRateGivenT(0, iznc, 6);
-				std::cout << "ZNC class rate:" << zncrate.first / 28. << std::endl;
-			} else {
-			std::cout << "ZNC class not available" << std::endl;
-			}
+		}
+		if( ft0 == 255){
+			Print_Output("FT0",runNumbers[j],0,0,0);
+		}
+		else{
+			Print_Output_Class("FT0",runNumbers[j],recs,clsIndexToScaler[ft0] + 1,bcs.size());
 		}
 	}
 }
