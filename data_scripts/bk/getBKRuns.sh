@@ -117,9 +117,10 @@ LINE+=$(printf "# EPNs${SEP}")
 LINE+=$(printf "CTF File Size${SEP}")
 LINE+=$(printf "TF File Size${SEP}")
 LINE+=$(printf "ZDC Trigger${SEP}")
+LINE+=$(printf "Triggers${SEP}")
 LINE+=$(printf "Mu${SEP}")
-LINE+=$(printf "ZDC Rate${SEP}")
 for d in ${DETS}; do
+
    LINE+=$(printf "$d IN${SEP}")
 done
 LINE+=$(printf "\n")
@@ -127,7 +128,11 @@ LINE+=$(printf "\n")
 if [ x"$selection" = "x" ]; then
     echo $LINE | tr "$SEP" "${SEP_CSV}"
 else
-    echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
+	if [[ $getCTP -eq 1 ]]; then
+		echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}"
+	else
+		echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
+	fi
 fi
 
 RUNS="`jq .data[].runNumber ${DATA} | tac`"
@@ -200,11 +205,11 @@ then
 	echo "]" >> vals.json
 	if [ $zdc = 1 ];
 	then
-		selection=$selection,24,25,26 
+		selection=$selection,24,25
 	fi
 	if [ $ft0 = 1 ];
 	then
-		selection=$selection,27,28,29 
+		selection=$selection,27,28
 	fi
 cat > merge.jq << EOF 
 def dict(f):
@@ -235,9 +240,9 @@ for runNumber  in ${RUNS}; do
 
    runDefinition=$(jq .data[$n].definition ${DATA} | tr -d "\"")
    (( dbg )) && echo "$runDefinition" >&2
-   if [ x"$runDefinition" != "xPHYSICS" -a x"$runDefinition" != "xCOSMICS" ]; then
-      continue;
-   fi
+#   if [ x"$runDefinition" != "xPHYSICS" -a x"$runDefinition" != "xCOSMICS" ]; then
+  #    continue;
+#   fi
 
    runQuality=$(jq .data[$n].runQuality ${DATA} | tr -d "\"")
    (( dbg )) && echo "$runQuality" >&2
@@ -290,7 +295,7 @@ for runNumber  in ${RUNS}; do
    LINE+=$(printNum `jq .data[$n].fillNumber ${DATA}`) # Par: 13
    LINE+=$(printStr `jq .data[$n].lhcFill.fillingSchemeName ${DATA}`) # Par: 14
      
-   LINE+=$(printNum `jq .data[$n].lhcFill.stableBeamsDuration ${DATA}`) # Par: 15
+	LINE+=$(printNum `jq .data[$n].lhcFill.stableBeamsDuration ${DATA}`) 
    stableBeamsDuration=$(( `jq .data[$n].stableBeamsDuration ${DATA}` / 1000 ))
    #printf '%02d:%02d:%02d' $((stableBeamsDuration/3600)) $((stableBeamsDuration%3600/60)) $((stableBeamsDuration%60))
    #printf "${SEP}"
@@ -300,16 +305,16 @@ for runNumber  in ${RUNS}; do
      
    LINE+=$(printf "%s${SEP}" "`jq .data[$n].pdpWorkflowParameters ${DATA}`") 
      
-   eorReasons="`jq .data[$n].eorReasons ${DATA}`"
-   LINE+=$(printf "\"%s\"${SEP}" "`sanitize ${eorReasons}`")
+   eorReasons="`jq .data[$n].eorReasons[0].id ${DATA}`,`jq .data[$n].eorReasons[0].description ${DATA} | tr "," ";" `,`jq .data[$n].eorReasons[0].lastEditedName ${DATA}`,`jq .data[$n].eorReasons[0].reasonTypeId ${DATA}`,`jq .data[$n].eorReasons[0].runId ${DATA}`,$(timeToDate `jq .data[$n].eorReasons[0].createdAt ${DATA}`),$(timeToDate `jq .data[$n].eorReasons[0].updatedAt ${DATA}`),`jq .data[$n].eorReasons[0].category ${DATA}`,`jq .data[$n].eorReasons[0].title ${DATA}`"
+   LINE+=$(printf "\"%s\"${SEP}" "`sanitize ${eorReasons}`")  # Par: 21
 
-   LINE+=$(printf "%d${SEP}" ${nDetectors})
+   LINE+=$(printf "%d${SEP}" ${nDetectors})  # Par: 19
      
    #printf "%d${SEP}" `jq .data[$n].nFlps ${DATA}`
-   LINE+=$(printNum `jq .data[$n].nFlps ${DATA}`)
+   LINE+=$(printNum `jq .data[$n].nFlps ${DATA}`)  # Par: 20
      
    #printf "%d${SEP}" `jq .data[$n].nEpns ${DATA}`
-   LINE+=$(printNum `jq .data[$n].nEpns ${DATA}`)
+   LINE+=$(printNum `jq .data[$n].nEpns ${DATA}`)  # Par: 21
      
    LINE+=$(printNum `jq .data[$n].ctfFileSize ${DATA}`)  # Par: 22
      
@@ -340,18 +345,17 @@ for runNumber  in ${RUNS}; do
        echo $LINE | tr "$SEP" "${SEP_CSV}"
    else
 	   beamtype=`echo $LINE | cut -d"$SEP" -f 30 | tr "$SEP" "${SEP_CSV}"`
-	   echo $beamtype
-	   if [[ $beamtype == *"PROTON"* ]]; then
-			echo $LINE | cut -d"$SEP" -f $selection,27,28,29 | tr "$SEP" "${SEP_CSV}"
-	   elif [[ $beamtype == *"PB"* ]]; then
-			echo $LINE | cut -d"$SEP" -f $selection,24,25,26 | tr "$SEP" "${SEP_CSV}"
+	   if [[ $beamtype == *"PROTON"* && $getCTP -eq 1 ]]; then
+			echo $LINE | cut -d"$SEP" -f $selection,27,28 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+		elif [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
+			echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
 	   else
-			echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
+			echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
 	   fi
 	   
    fi
    
 done
 
-rm -f ${DATA}
+#rm -f ${DATA}
 

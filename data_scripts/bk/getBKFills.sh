@@ -49,12 +49,27 @@ fi
 if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
-
 URL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo"
-#(( dbg )) && 
-printf "URL:\"%s\"\n" "${URL}" >&2
+hostname=`hostname`
+if [[ $hostname == *"alio2-cr1"* ]]; then
+	echo "Run internally"
+	declare -x http_proxy="10.161.69.44:8080"
+	declare -x https_proxy="10.161.69.44:8080"
+	echo wget -q "${URL}" --no-check-certificate -O ${DATA}
+	wget -q "${URL}" --no-check-certificate -O ${DATA}
+	declare -x http_proxy=""
+	declare -x https_proxy=""
+else
+	echo "Run externally"
+	wget -q "${URL}"  -O ${DATA}
+fi
 
-wget -q "${URL}" -O ${DATA}
+
+
+#(( dbg )) && 
+#printf "URL:\"%s\"\n" "${URL}" >&2
+
+#wget -q "${URL}" -O ${DATA}
 
 LINE+=$(printf "Fill Number${SEP}")
 LINE+=$(printf "O2 start${SEP}")

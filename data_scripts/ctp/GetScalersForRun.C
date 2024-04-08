@@ -85,7 +85,9 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 			auto soreor = ccdbMgr.getRunDuration(runNumbers[j],false);	
 			cout<<"Run: "<<runNumbers[j]<<" "<<soreor.second<<" "<<soreor.first<<" "<<soreor.second - soreor.first<<endl;
 			uint64_t timeStamp_temp = 0;
-			if(soreor.second>0 && soreor.first>0)timeStamp_temp=(soreor.second - soreor.first) / 2 + soreor.first;
+			if(soreor.second>0 && soreor.first>0){
+				timeStamp_temp=(soreor.second - soreor.first) / 2 + soreor.first;
+			}
 			timeStamp_list.push_back(timeStamp_temp );
 			if(timeStamp_temp > 0 && timeStamp==0 ) timeStamp=timeStamp_temp;
 	}
@@ -108,6 +110,7 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	std::vector<int> bcs = bfilling.getFilledBCs();
 	std::cout << "Number of interacting bc:" << bcs.size() << std::endl;
 	std::cout << " Get all run for that fill " << endl;
+	//if(fillN==9448) ccdbMgr.setURL("http://ccdb-test.cern.ch");
 	for(uint j=0;j<runNumbers.size();j++){
 		std::string srun = std::to_string(runNumbers[j]);
 		metadata.clear(); // can be empty
@@ -152,7 +155,7 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 		std::cout << std::endl;
 		int ft0 = 255;
 		for (auto const& cls : ctpcls) {
-		//	std::cout << cls.name <<endl;
+			std::cout << cls.name <<endl;
 			if (cls.name.find("CMTVX-B-NOPF") != std::string::npos) {
 				ft0 = cls.getIndex();
 				std::cout << cls.name << ":" << ft0 << std::endl;
