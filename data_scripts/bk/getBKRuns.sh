@@ -78,18 +78,19 @@ fi
 
 URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999"
 #(( dbg )) && 
-printf "URL:\"%s\"\n" "${URL}" >&2
+if [[ $dbg -gt 0 ]];then printf "URL:\"%s\"\n" "${URL}" >&2; fi
+
 hostname=`hostname`
 if [[ $hostname == *"alio2-cr1"* ]]; then
-	echo "Run internally"
+	if [[ $dbg -gt 0 ]];then echo "Run internally"; fi
 	declare -x http_proxy="10.161.69.44:8080"
 	declare -x https_proxy="10.161.69.44:8080"
-	echo wget -q "${URL}" --no-check-certificate -O ${DATA}
+	if [[ $dbg -gt 0 ]];then echo wget -q "${URL}" --no-check-certificate -O ${DATA}; fi
 	wget -q "${URL}" --no-check-certificate -O ${DATA}
 	declare -x http_proxy=""
 	declare -x https_proxy=""
 else
-	echo "Run externally"
+	if [[ $dbg -gt 0 ]];then echo "Run externally"; fi
 	wget -q "${URL}"  -O ${DATA}
 fi
 
@@ -129,9 +130,9 @@ if [ x"$selection" = "x" ]; then
     echo $LINE | tr "$SEP" "${SEP_CSV}"
 else
 	if [[ $getCTP -eq 1 ]]; then
-		echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}"
+	if [[ $dbg -gt 0 ]];then 	echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}";fi
 	else
-		echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
+	if [[ $dbg -gt 0 ]];then 	echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}";fi
 	fi
 fi
 
@@ -174,7 +175,7 @@ then
 	ctpruns=`echo $RUNS | sed -e "s/\s\+/,/g"`
 	runarray=(${RUNS})
 	
-	echo ctp_data.sh -r $ctpruns -f $fillNo
+	if [[ $dbg -gt 0 ]];then echo ctp_data.sh -r $ctpruns -f $fillNo; fi
 	ctp_data.sh -r $ctpruns -f $fillNo > ${DATA_CTP}
 	rate=`grep "ZNC:" ${DATA_CTP}| cut -d" " -f 1 | cut -d: -f3 `
 	integral=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 2 | cut -d: -f2 `
@@ -240,9 +241,15 @@ for runNumber  in ${RUNS}; do
 
    runDefinition=$(jq .data[$n].definition ${DATA} | tr -d "\"")
    (( dbg )) && echo "$runDefinition" >&2
-#   if [ x"$runDefinition" != "xPHYSICS" -a x"$runDefinition" != "xCOSMICS" ]; then
-  #    continue;
-#   fi
+   goodtag=0
+	tags=$(jq .data[$n].tags[0].text ${DATA} | tr -d "\"")
+	tags+=","$(jq .data[$n].tags[1].text ${DATA} | tr -d "\"")  
+   if  [[ "$tags" == *"System Test 2024"* ]]; then goodtag=1; fi
+   if  [[ "$tags" == *"Special Run 2024"* ]]; then goodtag=1; fi
+   
+   if [ x"$runDefinition" != "xPHYSICS" -a x"$runDefinition" != "xCOSMICS" ]; then
+      (( !goodtag )) && continue;
+   fi
 
    runQuality=$(jq .data[$n].runQuality ${DATA} | tr -d "\"")
    (( dbg )) && echo "$runQuality" >&2

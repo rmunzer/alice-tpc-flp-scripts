@@ -49,26 +49,23 @@ fi
 if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
+
 URL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo"
+#(( dbg )) && 
+printf "URL:\"%s\"\n" "${URL}" >&2
 hostname=`hostname`
 if [[ $hostname == *"alio2-cr1"* ]]; then
-	(( dbg )) && echo "Run internally"
+	echo "Run internally"
 	declare -x http_proxy="10.161.69.44:8080"
 	declare -x https_proxy="10.161.69.44:8080"
-	(( dbg )) && echo wget -q "${URL}" --no-check-certificate -O ${DATA}
+	echo wget -q "${URL}" --no-check-certificate -O ${DATA}
 	wget -q "${URL}" --no-check-certificate -O ${DATA}
 	declare -x http_proxy=""
 	declare -x https_proxy=""
 else
-	(( dbg )) && echo "Run externally"
+	echo "Run externally"
 	wget -q "${URL}"  -O ${DATA}
 fi
-
-
-
-#(( dbg )) && 
-#printf "URL:\"%s\"\n" "${URL}" >&2
-
 #wget -q "${URL}" -O ${DATA}
 
 LINE+=$(printf "Fill Number${SEP}")
@@ -99,15 +96,15 @@ done
 LINE+=$(printf "\n")
 
 if [ x"$selection" = "x" ]; then
- if [[ $dbg -gt 0 ]];then    echo $LINE | tr "$SEP" "${SEP_CSV}";fi
+    echo $LINE | tr "$SEP" "${SEP_CSV}"
 else
- if [[ $dbg -gt 0 ]];then    echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}";fi
+    echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
 fi
 
 LINE=""
 
 RUNS="`jq .data.runs[].runNumber ${DATA}`"
-if [[ $dbg -gt 0 ]];then echo $RUNS;fi
+echo $RUNS
 NRUNS=$(( `echo "${RUNS}" | wc -l` ))
 if (( NRUNS > 998 )); then
    echo "Too many runs, please reduce the time range" >&2
@@ -147,9 +144,9 @@ LINE+=$(timeToDate $sbStart)
 
 sbDuration=$(jq ".data.stableBeamsDuration" ${DATA})
 
-if [[ $dbg -gt 0 ]];then echo $LINE;fi
-if [[ $dbg -gt 0 ]];then echo $sbDuration;fi
-if [[ $dbg -gt 0 ]];then printf '%02d:%02d:%02d\n' $((sbDuration/3600)) $((sbDuration%3600/60)) $((sbDuration%60));fi
+echo $LINE
+echo $sbDuration
+printf '%02d:%02d:%02d\n' $((sbDuration/3600)) $((sbDuration%3600/60)) $((sbDuration%60))
 
 nGood=0
 goodDuration=0
@@ -164,7 +161,7 @@ for runNumber in ${RUNS}; do
    
    curRun=$(jq .data.runs[$n].runNumber ${DATA})
 
-
+   echo "$n  $curRun  $runNumber"
    
    if (( curRun != runNumber )); then
      printf "Run number mismatch, fatal error\n" >&2
@@ -172,36 +169,16 @@ for runNumber in ${RUNS}; do
    fi
 
    runDefinition=$(jq .data.runs[$n].definition ${DATA} | tr -d "\"")
-
-   
-    if [ x"$runDefinition" == "xCALIBRATION" ]; then
-      continue;
-   fi 
-   if [ x"$runDefinition" == "xSYNTHETIC" ]; then
-      continue;
-   fi   
-   (( dbg )) && echo "-----------"
-      (( dbg )) && echo "$n  $curRun  $runNumber"
-	goodtag=0
-   tags=$(jq .data.runs[$n].tags[0].text ${DATA} | tr -d "\"")
-   tags+=","$(jq .data.runs[$n].tags[1].text ${DATA} | tr -d "\"")  
-   if  [[ "$tags" == *"System Test 2024"* ]]; then goodtag=1; fi
-   if  [[ "$tags" == *"Special Run 2024"* ]]; then goodtag=1; fi
-   (( dbg )) && echo "$runDefinition,$tags,$goodtag"  >&2
-
+   (( dbg )) && echo "$runDefinition" >&2
    if [ x"$runDefinition" != "xPHYSICS" ]; then
-      (( !goodtag )) && continue;
+      continue;
    fi
 
    runQuality=$(jq .data.runs[$n].runQuality ${DATA} | tr -d "\"")
    (( dbg )) && echo "$runQuality" >&2
    if [ x"$runQuality" != "xgood" ]; then
-      (( !goodtag )) && continue;
-   fi
-   if [ x"$runQuality" == "xbad" ]; then
       continue;
    fi
-   (( dbg )) && echo "Used"
 
    nGood=$((nGood+1))
 
@@ -209,7 +186,7 @@ for runNumber in ${RUNS}; do
    runDurationSec=$((runDuration/1000))
    goodDuration=$((goodDuration+runDuration))
 
- (( dbg )) && printf '%02d  %06d  %08d  %02d:%02d:%02d\n' $n $runNumber $runDurationSec $((runDurationSec/3600)) $((runDurationSec%3600/60)) $((runDurationSec%60))
+   printf '%02d  %06d  %08d  %02d:%02d:%02d\n' $n $runNumber $runDurationSec $((runDurationSec/3600)) $((runDurationSec%3600/60)) $((runDurationSec%60))
 
    if (( goodStart == 0 )); then
       goodStart=$(jq .data.runs[$n].timeTrgStart ${DATA})
@@ -231,26 +208,26 @@ effEnd=$(echo "scale=2; $lossEnd/$sbDuration/10" | bc -l)
 
 meanDuration=$((goodDuration/nGood))
 meanDurationSec=$((meanDuration/1000))
-(( dbg )) && echo $meanDuration
+echo $meanDuration
 meanDurationPerc=$(echo "scale=2; $meanDuration/$sbDuration/10" | bc -l)
 
 goodDurationSec=$((goodDuration/1000))
-(( dbg )) && echo $goodDurationSec
-(( dbg )) && printf '%02d:%02d:%02d\n' $((goodDurationSec/3600)) $((goodDurationSec%3600/60)) $((goodDurationSec%60))
+echo $goodDurationSec
+printf '%02d:%02d:%02d\n' $((goodDurationSec/3600)) $((goodDurationSec%3600/60)) $((goodDurationSec%60))
 
 
 beforeFirst=$((goodStart-sbStart))
 beforeFirstSec=$((beforeFirst/1000))
-(( dbg )) && printf '%02d:%02d:%02d\n' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $((beforeFirstSec%60))
+printf '%02d:%02d:%02d\n' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $((beforeFirstSec%60))
 beforeFirstPerc=$(echo "scale=2; $beforeFirst/$sbDuration/10" | bc -l)
-(( dbg )) && echo "$beforeFirstPerc%"
+echo "$beforeFirstPerc%"
 
 eff=$(echo "scale=2; $goodDuration/$sbDuration/10" | bc -l)
-(( dbg )) && echo "$eff%"
+echo "$eff%"
 
 
 echo -n "$fillNo,$eff%"
-printf ',%02d:%02d:%02d' $((meanDurationSec/3600)) $((meanDurationSec%3600/60)) $((meanDurationSec%60));
+printf ',%02d:%02d:%02d' $((meanDurationSec/3600)) $((meanDurationSec%3600/60)) $((meanDurationSec%60))
 echo -n ",${meanDurationPerc}%,${beforeFirstPerc}%"
 printf ',%02d:%02d:%02d' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $((beforeFirstSec%60))
 echo -n ",${effEnd}%,,$(timeToDate $sbStart)"
