@@ -15,22 +15,25 @@ DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD ZDC"
 # Separator for the CSV output
 SEP_CSV=","
 SEP="|"
-
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Mzg3ODQ0LCJ1c2VybmFtZSI6ImFsaWNlcmMiLCJuYW1lIjoiQUxJQ0UgUnVuIENvb3JkaW5hdGlvbiIsImFjY2VzcyI6ImFkbWluIiwiaWF0IjoxNzEyODI4NTMwLCJleHAiOjE3NDQzODYxMzAsImlzcyI6Im8yLXVpIn0.7_C4jkE99aiXlDIMI65jyXkgjJIPJSYmvotRHeNQuxA"
 # =========================================================================
 usage() {
    printf "Usage: %s [OPTION...]\n" "`basename $0`"
    printf "   -d     \tDebug\n"
    printf "   -F FillNo\tNumber of the fill\n"
    printf "   -s selection\tfields selection (comma-separated)\n"
+   printf "   -c Fill was used for calibration runs"
 }
 
 dbg=0
 fillNo=0
 selection=""
-while getopts F:s:dh? flag; do
+CalibFill=""
+while getopts F:s:dhc? flag; do
    case "${flag}" in
       F) fillNo="${OPTARG}";;
       d) dbg=1;;
+      c) CalibFill="C";;
       s) selection="${OPTARG}";;
       h|*) usage; exit 1;;
    esac
@@ -45,11 +48,10 @@ O=""
 if [ "${from}${to}" ]; then
    O=""
 fi
-
 if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
-URL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo"
+URL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo?token=${TOKEN}"
 hostname=`hostname`
 if [[ $hostname == *"alio2-cr1"* ]]; then
 	(( dbg )) && echo "Run internally"
@@ -180,13 +182,15 @@ for runNumber in ${RUNS}; do
    if [ x"$runDefinition" == "xSYNTHETIC" ]; then
       continue;
    fi   
+   nDecRun=$(jq .data.runs[$n].nDetectors ${DATA})
    (( dbg )) && echo "-----------"
-      (( dbg )) && echo "$n  $curRun  $runNumber"
+      (( dbg )) && echo "$n  $curRun  $runNumber" NDEc="$nDecRun"
 	goodtag=0
    tags=$(jq .data.runs[$n].tags[0].text ${DATA} | tr -d "\"")
    tags+=","$(jq .data.runs[$n].tags[1].text ${DATA} | tr -d "\"")  
+   
    if  [[ "$tags" == *"System Test 2024"* ]]; then goodtag=1; fi
-   if  [[ "$tags" == *"Special Run 2024"* ]]; then goodtag=1; fi
+   if  [[ "$tags" == *"Special Run 2024"* ]] && [[ $nDecRUn -gt 2 ]]; then goodtag=1; fi
    (( dbg )) && echo "$runDefinition,$tags,$goodtag"  >&2
 
    if [ x"$runDefinition" != "xPHYSICS" ]; then
@@ -256,7 +260,7 @@ printf ',%02d:%02d:%02d' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $(
 echo -n ",${effEnd}%,,$(timeToDate $sbStart)"
 printf ',%02d:%02d:%02d' $((sbDuration/3600)) $((sbDuration%3600/60)) $((sbDuration%60))
 printf ',%02d:%02d:%02d' $((goodDurationSec/3600)) $((goodDurationSec%3600/60)) $((goodDurationSec%60))
-echo ",,,$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
+echo ",,$CalibFill,$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
 
 
 #rm -f ${DATA}

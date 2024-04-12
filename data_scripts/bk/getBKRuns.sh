@@ -16,6 +16,8 @@ DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD ZDC"
 # Separator for the CSV output
 SEP_CSV=","
 SEP="|"
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Mzg3ODQ0LCJ1c2VybmFtZSI6ImFsaWNlcmMiLCJuYW1lIjoiQUxJQ0UgUnVuIENvb3JkaW5hdGlvbiIsImFjY2VzcyI6ImFkbWluIiwiaWF0IjoxNzEyODI4NTMwLCJleHAiOjE3NDQzODYxMzAsImlzcyI6Im8yLXVpIn0.7_C4jkE99aiXlDIMI65jyXkgjJIPJSYmvotRHeNQuxA"
+
 
 # =========================================================================
 usage() {
@@ -28,6 +30,7 @@ usage() {
    printf "   -s selection\tfields selection (comma-separated)\n"
    printf "   -c get ctp information\n"
    printf "   -g \tgood runs only\n"
+   printf "   -p \tOnly Physics Runs\n"
 }
 
 from="-7 days"
@@ -40,7 +43,8 @@ goodOnly=0
 getCTP=0
 ft0=0
 zdc=0
-while getopts f:t:F:D:s:gdhclz? flag; do
+onlyPhysics=0
+while getopts f:t:F:D:s:gdhclzp? flag; do
    case "${flag}" in
       f) from="${OPTARG}";;
       t) to="${OPTARG}";;
@@ -52,6 +56,7 @@ while getopts f:t:F:D:s:gdhclz? flag; do
 	  c) getCTP=1;;
 	  l) ft0=1;;
 	  z) zdc=1;;
+	  p) onlyPhysics=1;;
       h|*) usage; exit 1;;
    esac
 done
@@ -76,21 +81,21 @@ if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
 
-URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999"
+URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999&token=${TOKEN}"
 #(( dbg )) && 
-if [[ $dbg -gt 0 ]];then printf "URL:\"%s\"\n" "${URL}" >&2; fi
+(( dbg )) && printf "URL:\"%s\"\n" "${URL}" >&2
 
 hostname=`hostname`
 if [[ $hostname == *"alio2-cr1"* ]]; then
-	if [[ $dbg -gt 0 ]];then echo "Run internally"; fi
+	(( dbg )) && echo "Run internally"
 	declare -x http_proxy="10.161.69.44:8080"
 	declare -x https_proxy="10.161.69.44:8080"
-	if [[ $dbg -gt 0 ]];then echo wget -q "${URL}" --no-check-certificate -O ${DATA}; fi
+	(( dbg )) && echo wget -q "${URL}" --no-check-certificate -O ${DATA}
 	wget -q "${URL}" --no-check-certificate -O ${DATA}
 	declare -x http_proxy=""
 	declare -x https_proxy=""
 else
-	if [[ $dbg -gt 0 ]];then echo "Run externally"; fi
+	(( dbg )) && echo "Run externally"
 	wget -q "${URL}"  -O ${DATA}
 fi
 
@@ -130,9 +135,9 @@ if [ x"$selection" = "x" ]; then
     echo $LINE | tr "$SEP" "${SEP_CSV}"
 else
 	if [[ $getCTP -eq 1 ]]; then
-	if [[ $dbg -gt 0 ]];then 	echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}";fi
+	(( dbg )) && echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}"
 	else
-	if [[ $dbg -gt 0 ]];then 	echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}";fi
+	(( dbg )) && echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
 	fi
 fi
 
@@ -175,7 +180,7 @@ then
 	ctpruns=`echo $RUNS | sed -e "s/\s\+/,/g"`
 	runarray=(${RUNS})
 	
-	if [[ $dbg -gt 0 ]];then echo ctp_data.sh -r $ctpruns -f $fillNo; fi
+	(( dbg )) && echo ctp_data.sh -r $ctpruns -f $fillNo
 	ctp_data.sh -r $ctpruns -f $fillNo > ${DATA_CTP}
 	rate=`grep "ZNC:" ${DATA_CTP}| cut -d" " -f 1 | cut -d: -f3 `
 	integral=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 2 | cut -d: -f2 `
@@ -244,8 +249,9 @@ for runNumber  in ${RUNS}; do
    goodtag=0
 	tags=$(jq .data[$n].tags[0].text ${DATA} | tr -d "\"")
 	tags+=","$(jq .data[$n].tags[1].text ${DATA} | tr -d "\"")  
-   if  [[ "$tags" == *"System Test 2024"* ]]; then goodtag=1; fi
-   if  [[ "$tags" == *"Special Run 2024"* ]]; then goodtag=1; fi
+	nDecRun=$(jq .data[$n].nDetectors ${DATA})
+   if  [[ "$tags" == *"System Test 2024"* ]] && [[ $onlyPhysics -eq 0 ]]; then goodtag=1; fi
+   if  [[ "$tags" == *"Special Run 2024"* ]] && [[ $nDecRUn -gt 2 ]]&& [[ $onlyPhysics -eq 0 ]]; then goodtag=1; fi
    
    if [ x"$runDefinition" != "xPHYSICS" -a x"$runDefinition" != "xCOSMICS" ]; then
       (( !goodtag )) && continue;

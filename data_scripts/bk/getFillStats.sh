@@ -1,3 +1,3 @@
 #! /bin/bash
 
-getBKFills.sh -F $1
+getBKFills.sh -F $1 $2

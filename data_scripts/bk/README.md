@@ -6,9 +6,9 @@
 2. getFillStats.sh ${FILLNUMER}  # Get Fill Efficiency 
 3. getRunStats.sh ${FILLNUMBER}  # Get Run Statistics with ctp trigger information
 
-4. getAllFill.sh ${FILLNUMER} # Get all information from 1.,.2,3. for a fill 
+4. get_all_info_per_fill.sh ${FILLNUMER} # Get all information from 1.,.2,3. for a fill 
 
-5. getListFills.sh # get 1.,2. from all Stable Beams fills
+5. list_eff_for_all_fill.sh  # get 2. from all Stable Beams fills
 
 
 ## getBKFills.sh 
