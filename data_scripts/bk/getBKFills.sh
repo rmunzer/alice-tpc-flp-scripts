@@ -186,9 +186,7 @@ for runNumber in ${RUNS}; do
    (( dbg )) && echo "-----------"
       (( dbg )) && echo "$n  $curRun  $runNumber" NDEc="$nDecRun"
 	goodtag=0
-   tags=$(jq .data.runs[$n].tags[0].text ${DATA} | tr -d "\"")
-   tags+=","$(jq .data.runs[$n].tags[1].text ${DATA} | tr -d "\"")  
-   
+   tags=`jq .data.runs[$n].tags[].text ${DATA} | tac` 
    if  [[ "$tags" == *"System Test 2024"* ]]; then goodtag=1; fi
    if  [[ "$tags" == *"Special Run 2024"* ]] && [[ $nDecRUn -gt 2 ]]; then goodtag=1; fi
    (( dbg )) && echo "$runDefinition,$tags,$goodtag"  >&2
@@ -232,8 +230,11 @@ fi
 
 effEnd=$(echo "scale=2; $lossEnd/$sbDuration/10" | bc -l)
 
-
-meanDuration=$((goodDuration/nGood))
+if [[ nGood -gt 0 ]];then
+	meanDuration=$((goodDuration/nGood))
+else
+	meanDuration=0
+fi
 meanDurationSec=$((meanDuration/1000))
 (( dbg )) && echo $meanDuration
 meanDurationPerc=$(echo "scale=2; $meanDuration/$sbDuration/10" | bc -l)
@@ -244,13 +245,27 @@ goodDurationSec=$((goodDuration/1000))
 
 
 beforeFirst=$((goodStart-sbStart))
+# If not run was taken in the fill the beforeFirst is 100% and last is 0%
+if [[ $beforeFirst -lt 0 ]]; then
+	beforeFirst=$(echo "scale=2; $sbDuration * 1000" | bc -l)
+	effEnd=0;
+fi
 beforeFirstSec=$((beforeFirst/1000))
 (( dbg )) && printf '%02d:%02d:%02d\n' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $((beforeFirstSec%60))
 beforeFirstPerc=$(echo "scale=2; $beforeFirst/$sbDuration/10" | bc -l)
-(( dbg )) && echo "$beforeFirstPerc%"
+(( dbg )) && echo Eff Lost before first run: "$beforeFirstPerc%"
 
 eff=$(echo "scale=2; $goodDuration/$sbDuration/10" | bc -l)
-(( dbg )) && echo "$eff%"
+(( dbg )) && echo Data Taking Efficiency: "$eff%"
+
+ShortFill=""
+if [[ $sbDuration -lt 1800 ]];
+then
+	ShortFill="S"
+fi
+
+(( dbg )) && echo Efficiency loss at End of Fill: "$effEnd%"
+
 
 
 echo -n "$fillNo,$eff%"
@@ -260,7 +275,7 @@ printf ',%02d:%02d:%02d' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $(
 echo -n ",${effEnd}%,,$(timeToDate $sbStart)"
 printf ',%02d:%02d:%02d' $((sbDuration/3600)) $((sbDuration%3600/60)) $((sbDuration%60))
 printf ',%02d:%02d:%02d' $((goodDurationSec/3600)) $((goodDurationSec%3600/60)) $((goodDurationSec%60))
-echo ",,$CalibFill,$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
+echo ",,${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
 
 
 #rm -f ${DATA}

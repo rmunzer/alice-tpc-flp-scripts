@@ -247,11 +247,11 @@ for runNumber  in ${RUNS}; do
    runDefinition=$(jq .data[$n].definition ${DATA} | tr -d "\"")
    (( dbg )) && echo "$runDefinition" >&2
    goodtag=0
-	tags=$(jq .data[$n].tags[0].text ${DATA} | tr -d "\"")
-	tags+=","$(jq .data[$n].tags[1].text ${DATA} | tr -d "\"")  
-	nDecRun=$(jq .data[$n].nDetectors ${DATA})
+   tags="`jq .data[$n].tags[].text ${DATA} | tac`"
+   notforPhysics=""
    if  [[ "$tags" == *"System Test 2024"* ]] && [[ $onlyPhysics -eq 0 ]]; then goodtag=1; fi
    if  [[ "$tags" == *"Special Run 2024"* ]] && [[ $nDecRUn -gt 2 ]]&& [[ $onlyPhysics -eq 0 ]]; then goodtag=1; fi
+   if  [[ "$tags" == *"Not for physics"* ]]; then notforPhysics="NF"; fi
    
    if [ x"$runDefinition" != "xPHYSICS" -a x"$runDefinition" != "xCOSMICS" ]; then
       (( !goodtag )) && continue;
@@ -297,7 +297,7 @@ for runNumber  in ${RUNS}; do
    LINE+=$(printStr `jq .data[$n].environmentId ${DATA}`)  # Par: 9
      
    #printf "%s${SEP}" "`jq .data[$n].runType.name ${DATA}`"
-   LINE+=$(printStr `jq .data[$n].runType.name ${DATA}`) # Par: 10
+   LINE+=$(printStr `jq .data[$n].runType.name ${DATA}`)${notforPhysics} # Par: 10
      
    #printf "%s${SEP}" "`jq .data[$n].definition ${DATA}`"
    LINE+=$(printStr `jq .data[$n].definition ${DATA}`) # Par: 11
