@@ -7,6 +7,7 @@
 # =========================================================================
 # Temporary files used to cache the detailed data
 DATA="/tmp/`basename $0`.$$"
+DATA2="/tmp/`basename $0`-env.$$"
 
 # List of ALICE detectors
 # DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD TST ZDC"
@@ -15,7 +16,6 @@ DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD ZDC"
 # Separator for the CSV output
 SEP_CSV=","
 SEP="|"
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Mzg3ODQ0LCJ1c2VybmFtZSI6ImFsaWNlcmMiLCJuYW1lIjoiQUxJQ0UgUnVuIENvb3JkaW5hdGlvbiIsImFjY2VzcyI6ImFkbWluIiwiaWF0IjoxNzEyODI4NTMwLCJleHAiOjE3NDQzODYxMzAsImlzcyI6Im8yLXVpIn0.7_C4jkE99aiXlDIMI65jyXkgjJIPJSYmvotRHeNQuxA"
 # =========================================================================
 usage() {
    printf "Usage: %s [OPTION...]\n" "`basename $0`"
@@ -23,18 +23,21 @@ usage() {
    printf "   -F FillNo\tNumber of the fill\n"
    printf "   -s selection\tfields selection (comma-separated)\n"
    printf "   -c Fill was used for calibration runs"
+   printf "   -e Environment and Calibration stats"
 }
 
 dbg=0
 fillNo=0
 selection=""
 CalibFill=""
-while getopts F:s:dhc? flag; do
+calibandenv=0
+while getopts F:s:dhce? flag; do
    case "${flag}" in
       F) fillNo="${OPTARG}";;
       d) dbg=1;;
       c) CalibFill="C";;
       s) selection="${OPTARG}";;
+      e) calibandenv=1;;
       h|*) usage; exit 1;;
    esac
 done
@@ -43,6 +46,10 @@ if (( dbg )); then
    printf "`basename $0` starting\t"
    printf "\tfrom:'%s' to:'%s' fillNo:'%d'\n" "${from}" "${to}" "${fillNo}"
 fi >&2
+# Get delivery from masi file:
+mass_summary=`ssh lhcif "cat massiFiles/$fillNo/${fillNo}_summary_ALICE.txt"`
+delivered_lumi=`echo $mass_summary | cut -f 4 -d" "`
+delivered_lumi=`echo "scale=1; $delivered_lumi /1000" | bc`
 
 O=""
 if [ "${from}${to}" ]; then
@@ -51,7 +58,8 @@ fi
 if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
-URL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo?token=${TOKEN}"
+URL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo?token=${BK_TOKEN}"
+URL2="https://ali-bookkeeping.cern.ch/api/environments?token=${BK_TOKEN}"
 hostname=`hostname`
 if [[ $hostname == *"alio2-cr1"* ]]; then
 	(( dbg )) && echo "Run internally"
@@ -59,11 +67,13 @@ if [[ $hostname == *"alio2-cr1"* ]]; then
 	declare -x https_proxy="10.161.69.44:8080"
 	(( dbg )) && echo wget -q "${URL}" --no-check-certificate -O ${DATA}
 	wget -q "${URL}" --no-check-certificate -O ${DATA}
+	wget -q "${URL2}" --no-check-certificate -O ${DATA2}
 	declare -x http_proxy=""
 	declare -x https_proxy=""
 else
 	(( dbg )) && echo "Run externally"
 	wget -q "${URL}"  -O ${DATA}
+	wget -q "${URL2}" -O ${DATA2}
 fi
 
 
@@ -109,6 +119,7 @@ fi
 LINE=""
 
 RUNS="`jq .data.runs[].runNumber ${DATA}`"
+ENVS="`jq .data[].createdAt ${DATA2}`"
 if [[ $dbg -gt 0 ]];then echo $RUNS;fi
 NRUNS=$(( `echo "${RUNS}" | wc -l` ))
 if (( NRUNS > 998 )); then
@@ -146,6 +157,178 @@ LINE+=$(printNum $(jq ".data.fillNumber" ${DATA}))
 sbStart=$(jq ".data.stableBeamsStart" ${DATA})
 sbEnd=$(jq ".data.stableBeamsEnd" ${DATA})
 LINE+=$(timeToDate $sbStart)
+endofCalib=0
+startofCalib=$sbEndloc
+if [[ $calibandenv == 1 ]];
+then
+e=-1
+good_env=0;
+failed_env=0;
+sbStartloc=$sbStart
+sbStartlocshift=$(( sbStart - 3600000 ))
+sbEndloc=$sbEnd
+endofCalib=0
+startofCalib=$sbEndloc
+calibfound=0;
+first_physics_env=0;
+first_physics_env_time=0;
+first_physics_env_status=0;
+first_physics_env_run=0;
+first_physics_run=""
+first_physics_start=0
+frist_physics_quality=""
+first_physics_eor=""
+first_physics_id=""
+calib_detectors=""
+run_before=0
+dbgt=1
+
+for env in ${ENVS}; do
+	e=$((e+1))
+	envStartloc=$env
+
+	
+	
+	(( $env > $sbEndloc )) && continue
+	
+	id=$(jq ".data[$e].id" ${DATA2})
+	(( $env < $sbStartloc )) && run_before=$(( run_before + 1))
+	(( run_before > 10 )) && break
+	(( run_before > 10 )) && break
+	envRuns=$(jq ".data[$e].runs[].runNumber" ${DATA2})
+	NenvRuns=$(( `echo "${envRuns}" | wc -l` ))	
+	if [[ $envRuns == "" ]];
+	then
+		hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
+		histlist_short=
+		h=-1
+		for hi in ${hist}; do
+			h=$((h+1))
+			histlocal=$(jq ".data[$e].historyItems[$h].status" ${DATA2})
+			if [[ $histlist_short == "" ]];
+			then	
+				histlist_short=${histlocal:1:1}
+			else
+				histlist_short=$histlist_short-${histlocal:1:1}
+			fi
+		done
+		(( dbg )) && echo $id - $(timeToDate $sbStartlocshift) - $(timeToDate $env) - No Runs -  $histlist_short
+		failed_env=$(( failed_env+1))
+		if [[ $calibfound == 0 ]];
+		then
+			first_physics_env_run=""
+			first_physics_env_status=$histlist_short
+			first_physics_env=$id
+			first_physics_env_time=$envStartloc
+		fi
+	else
+		runN=$(jq ".data[$e].runs[].runNumber" ${DATA2})
+		n=-1
+		for runNumber in ${RUNS}; do
+			n=$((n+1))
+			if [[ $runNumber -eq $runN ]];
+			then
+				curRun=$(jq .data.runs[$n].runNumber ${DATA})
+				runDefinition=$(jq .data.runs[$n].definition ${DATA})
+				if  [[ "$runDefinition" == *"PHYSICS"* ]];then
+					startofRun=$(jq .data.runs[$n].timeTrgStart ${DATA})
+					endofRun=$(jq .data.runs[$n].timeTrgEnd ${DATA})
+					
+					
+					first_physics_run=$(jq .data.runs[$n].runNumber ${DATA})
+					first_physics_start=$startofRun
+					frist_physics_quality=$(jq .data.runs[$n].runQuality ${DATA})
+					first_physics_eor=$(jq .data.runs[$n].eorReasons[0].reasonTypeId ${DATA})
+					first_physics_id=$(jq .data.runs[$n].eorReasons[0].environmentId ${DATA})
+					hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
+					histlist_short=
+					time_standby=0
+					time_deployed=0
+					time_configured=0
+					time_running=0
+					h=-1
+					for hi in ${hist}; do
+						h=$((h+1))
+						if [[ "$hi" == *"STANDBY"* ]];
+						then
+							(( time_standby == 0)) && time_standby=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
+						if [[ "$hi" == *"DEPLOYED"* ]];
+						then
+							(( time_deployed == 0)) && time_deployed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
+						if [[ "$hi" == *"CONFIGURED"* ]];
+						then
+							(( time_configured == 0)) && time_configured=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
+						if [[ "$hi" == *"RUNNING"* ]];
+						then
+							(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
+						if [[ $histlist_short == "" ]];
+						then	
+							histlist_short=${histlocal:1:1}
+						else
+							histlist_short=$histlist_short-${histlocal:1:1}
+						fi
+					done
+					time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
+					time_to_configured_local=$(( (time_configured-time_deployed)/1000))
+					time_to_running_local=$(( (time_running-time_configured)/1000))
+					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local 
+					if [[ $calibfound == 0 ]];
+					then
+						first_physics_env_run=$first_physics_run
+						first_physics_env_status="SUCCESS"
+						first_physics_env=$id
+						first_physics_env_time=$envStartloc
+					fi
+					sbEndloc=$startofRun
+				elif  [[ "$runDefinition" == *"CALIBRATION"* ]];then
+					(( $env < $sbStartloc )) && calibfound=1 
+					startofRun=$(jq .data.runs[$n].timeTrgStart ${DATA})
+					endofRun=$(jq .data.runs[$n].timeTrgEnd ${DATA})
+					detectors=$(jq .data.runs[$n].detectors ${DATA})
+					quality=$(jq .data.runs[$n].calibrationStatus ${DATA})
+
+					
+					if [[ "$detectors" != *"ZDC"* ]];
+					then
+						if [[ "$quality" == *"SUCCESS"* ]];
+						then
+							good_calibrations=$((good_calibrations + 1 ))
+						fi
+						calib_detectors=$detectors" "$calib_detectors
+						(( $env < $startofCalib )) &&  startofCalib=$env
+						(( $endofRun > $endofCalib )) &&  endofCalib=$endofRun
+					fi
+					(( dbg )) && echo $id - $(timeToDate $sbStartlocshift) - $(timeToDate $env)  - $runN - ${runDefinition} - $(timeToDate $startofRun) - $(timeToDate $endofRun) $detectors $quality $good_calibrations
+				else	
+					startofRun=$(jq .data.runs[$n].timeTrgStart ${DATA})
+					endofRun=$(jq .data.runs[$n].timeTrgEnd ${DATA})
+					(( dbg )) && echo $id - $(timeToDate $sbStartlocshift) - $(timeToDate $env)  - $runN - ${runDefinition} - ignored - $(timeToDate $startofRun) - $(timeToDate $endofRun)
+				fi
+			fi
+		done
+		#echo  `date -d @$sbStartloc` - `date -d @$envStartloc` - `date -d @$sbEndloc` - $runN- $curRun
+		good_env=$(( good_env+1))
+		(( good_calibrations > 5 )) && break
+	fi
+
+
+done
+calib_duration=$(( endofCalib/1000 - startofCalib/1000))
+if [[ $calib_duration > 1500 ]]; 
+then
+	calib_duration=1500
+fi
+(( dbg )) && echo ""
+(( dbg )) && echo Environments: Good: $good_env Failed:$failed_env 
+(( dbg )) && echo Duraction Calibration: $calib_duration
+(( dbg )) && echo First Physics Env: $first_physics_env - $(timeToDate $first_physics_env_time) - Status: $first_env_status
+(( dbg )) && echo First Good Run: $first_physics_run - $(timeToDate $first_physics_start) - $frist_physics_quality - $frist_physics_id- $first_physics_eor
+(( dbg )) && echo ""
+fi
 
 sbDuration=$(jq ".data.stableBeamsDuration" ${DATA})
 
@@ -163,6 +346,8 @@ goodEnd=0
 n=-1
 for runNumber in ${RUNS}; do
    n=$((n+1))
+   
+
    
    curRun=$(jq .data.runs[$n].runNumber ${DATA})
 
@@ -275,7 +460,15 @@ printf ',%02d:%02d:%02d' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $(
 echo -n ",${effEnd}%,,$(timeToDate $sbStart)"
 printf ',%02d:%02d:%02d' $((sbDuration/3600)) $((sbDuration%3600/60)) $((sbDuration%60))
 printf ',%02d:%02d:%02d' $((goodDurationSec/3600)) $((goodDurationSec%3600/60)) $((goodDurationSec%60))
-echo ",,${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
+if [[ $calibandenv == 1 ]];
+then
+echo -n ",,${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
+echo -n ",$(timeToDate $startofCalib),$(timeToDate $endofCalib)"
+printf ',%02d:%02d:%02d' $((calib_duration/3600)) $((calib_duration%3600/60)) $((calib_duration%60))
+echo ",$calib_detectors,$good_env,$failed_env",$first_physics_env,$(timeToDate $first_physics_env_time),$first_physics_env_run,$first_physics_env_status,,$first_physics_run,$frist_physics_quality,$(timeToDate $first_physics_start), $frist_physics_id,$first_physics_eor
+else
+echo ",${delivered_lumi},${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
+fi
 
 
 #rm -f ${DATA}

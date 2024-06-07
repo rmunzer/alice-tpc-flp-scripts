@@ -1,3 +1,6 @@
+*ACLiC*
+*cxx_tmp*
+*core_dump*
 *.pcm
 *dpl-config.json
 *.ini

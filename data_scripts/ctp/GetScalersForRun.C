@@ -81,6 +81,7 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 
 	uint64_t timeStamp=0;
 	vector<uint64_t> timeStamp_list;
+	uint64_t timeStamp_mean=0;
 	for(uint j=0;j<runNumbers.size();j++){
 			auto soreor = ccdbMgr.getRunDuration(runNumbers[j],false);	
 			cout<<"Run: "<<runNumbers[j]<<" "<<soreor.second<<" "<<soreor.first<<" "<<soreor.second - soreor.first<<endl;
@@ -89,7 +90,8 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 				timeStamp_temp=(soreor.second - soreor.first) / 2 + soreor.first;
 			}
 			timeStamp_list.push_back(timeStamp_temp );
-			if(timeStamp_temp > 0 && timeStamp==0 ) timeStamp=timeStamp_temp;
+//			if(timeStamp_temp > 0 && timeStamp==0 ) timeStamp=timeStamp_temp;
+			if(timeStamp_temp > 0) timeStamp=timeStamp_temp;
 	}
 	std::cout << "Timestamp:" << timeStamp << std::endl;
 	if(timeStamp==0){
@@ -105,7 +107,8 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	std::map<string, string> metadata;
 	metadata["fillNumber"] = sfill;
 	ccdbMgr.setURL("http://o2-ccdb.internal");
-	auto lhcifdata = ccdbMgr.getSpecific<o2::parameters::GRPLHCIFData>("GLO/Config/GRPLHCIF", timeStamp, metadata);
+	std::cout << "Timestamp Mean:" << timeStamp_mean << std::endl;
+	auto lhcifdata = ccdbMgr.getSpecific<o2::parameters::GRPLHCIFData>("GLO/Config/GRPLHCIF", timeStamp_list[0], metadata);
 	auto bfilling = lhcifdata->getBunchFilling();
 	std::vector<int> bcs = bfilling.getFilledBCs();
 	std::cout << "Number of interacting bc:" << bcs.size() << std::endl;
@@ -156,7 +159,7 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 		int ft0 = 255;
 		for (auto const& cls : ctpcls) {
 			std::cout << cls.name <<endl;
-			if (cls.name.find("CMTVX-B-NOPF") != std::string::npos) {
+			if (cls.name.find("CMTVX-NONE-NOPF-CR") != std::string::npos) {
 				ft0 = cls.getIndex();
 				std::cout << cls.name << ":" << ft0 << std::endl;
 				break;

@@ -16,8 +16,6 @@ DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD ZDC"
 # Separator for the CSV output
 SEP_CSV=","
 SEP="|"
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Mzg3ODQ0LCJ1c2VybmFtZSI6ImFsaWNlcmMiLCJuYW1lIjoiQUxJQ0UgUnVuIENvb3JkaW5hdGlvbiIsImFjY2VzcyI6ImFkbWluIiwiaWF0IjoxNzEyODI4NTMwLCJleHAiOjE3NDQzODYxMzAsImlzcyI6Im8yLXVpIn0.7_C4jkE99aiXlDIMI65jyXkgjJIPJSYmvotRHeNQuxA"
-
 
 # =========================================================================
 usage() {
@@ -78,10 +76,10 @@ if [ "${from}${to}" ]; then
 fi
 
 if (( fillNo > 0 )); then
-   O="filter[fillNumbers]=${fillNo}"   
+   O="filter[fillNumbers]=${fillNo}&filter[definitions]=PHYSICS"   
 fi
 
-URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999&token=${TOKEN}"
+URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999&token=${BK_TOKEN}"
 #(( dbg )) && 
 (( dbg )) && printf "URL:\"%s\"\n" "${URL}" >&2
 
@@ -180,7 +178,7 @@ then
 	ctpruns=`echo $RUNS | sed -e "s/\s\+/,/g"`
 	runarray=(${RUNS})
 	
-	(( dbg )) && echo ctp_data.sh -r $ctpruns -f $fillNo
+	 echo ctp_data.sh -r $ctpruns -f $fillNo
 	ctp_data.sh -r $ctpruns -f $fillNo > ${DATA_CTP}
 	rate=`grep "ZNC:" ${DATA_CTP}| cut -d" " -f 1 | cut -d: -f3 `
 	integral=`grep "ZNC:" ${DATA_CTP} | cut -d" " -f 2 | cut -d: -f2 `
