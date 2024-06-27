@@ -12,6 +12,7 @@
 //#if !defined(__CLING__) || defined(__ROOTCLING__)
 #include <CCDB/BasicCCDBManager.h>
 #include <DataFormatsCTP/Configuration.h>
+#include <time.h>
 #include <DataFormatsParameters/GRPLHCIFData.h>
 //#endif
 #include <TMath.h>
@@ -52,6 +53,15 @@ void Print_Output_Class(string source,int run,std::vector<CTPScalerRecordO2> rec
 	Print_Output(source,run,recs[recs.size() - 1].epochTime-recs[0].epochTime,integral,nbc);
 	
 }
+string time_print(uint64_t tp){
+ time_t tpt=static_cast<time_t>(tp);
+ struct tm  ts;
+ char buf[80];
+ ts = *localtime(&tpt);
+ strftime(buf, sizeof(buf), "%a %Y-%m-%d %H:%M:%S %Z", &ts);
+ string out_string(buf);
+ return out_string;
+}
 void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 {
 	std::size_t posOpen = runNumberList.find("[");
@@ -83,11 +93,12 @@ void GetScalersForRun(string runNumberList, int fillN = 0, bool PbPb_run=true)
 	vector<uint64_t> timeStamp_list;
 	uint64_t timeStamp_mean=0;
 	for(uint j=0;j<runNumbers.size();j++){
-			auto soreor = ccdbMgr.getRunDuration(runNumbers[j],false);	
-			cout<<"Run: "<<runNumbers[j]<<" "<<soreor.second<<" "<<soreor.first<<" "<<soreor.second - soreor.first<<endl;
+			auto soreor = ccdbMgr.getRunDuration(runNumbers[j],true);	
+			cout<<"Run: "<<runNumbers[j]<<":  Start "<<soreor.first<<"("<< time_print(soreor.first/1000) <<") - End "<<soreor.second<<"("<< time_print(soreor.second/1000) <<"): Duration "<<soreor.second - soreor.first<<endl;
 			uint64_t timeStamp_temp = 0;
 			if(soreor.second>0 && soreor.first>0){
-				timeStamp_temp=(soreor.second - soreor.first) / 2 + soreor.first;
+				//timeStamp_temp=(soreor.second - soreor.first) / 2 + soreor.first;
+				timeStamp_temp=( 5*soreor.second + soreor.first) / 6 ;
 			}
 			timeStamp_list.push_back(timeStamp_temp );
 //			if(timeStamp_temp > 0 && timeStamp==0 ) timeStamp=timeStamp_temp;
