@@ -17,6 +17,7 @@
 #include "TCanvas.h"
 #include "TImage.h"
 #include "TH1.h"
+#include "TLine.h"
 #include <curl/curl.h>
 #include <error.h>
 #include <fstream>
@@ -261,6 +262,23 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
 	  zpos->SetMarkerStyle(20);
 	  zpos->SetMarkerSize(1);
 	  zpos->Draw("ap");
+	  float xmin=zpos->GetXaxis()->GetXmin();
+	  float xmax=zpos->GetXaxis()->GetXmax();
+	  TLine *l1=new TLine(xmin,-5,xmax,-5);
+	  l1->SetLineColor(kYellow);
+	  l1->Draw("");
+	  TLine *l2=new TLine(xmin,5,xmax,5);
+	  l2->SetLineColor(kYellow);
+	  l2->Draw("");
+	  TLine *l3=new TLine(xmin,-10,xmax,-10);
+	  l3->SetLineColor(kRed);
+	  l3->Draw("");
+	  TLine *l4=new TLine(xmin,10,xmax,10);
+	  l4->SetLineColor(kRed);
+	  l4->Draw("");
+	  TLine *l5=new TLine(xmin,0,xmax,0);
+	  l5->SetLineColor(kGreen);
+	  l5->Draw("");
 	  
 	  meanvert->Modified();
 	  meanvert->Update();
