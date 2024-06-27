@@ -59,7 +59,7 @@ from="-13 days"
 to="now"
 
 
-URL="https://ali-bookkeeping.cern.ch/api/runs?filter[definitions]=SYNTHETIC&filter[o2start][from]=`date --date=\"$from\" +%s`000&filter[o2start][to]=`date --date=\"$now\" +%s`999&token=${BK_TOKEN}"
+URL="https://ali-bookkeeping.cern.ch/api/runs?filter[definitions]=SYNTHETIC&filter[o2start][from]=`date --date=\"$from\" +%s`000&filter[o2start][to]=`date --date=\"$to\" +%s`999&token=${BK_TOKEN}"
 URL2="https://ali-bookkeeping.cern.ch/api/environments?token=${BK_TOKEN}"
 echo $URL
 hostname=`hostname`
@@ -163,12 +163,14 @@ for env in ${ENVS}; do
 				runDefinition=$(jq .data[$n].definition ${DATA})
 				readoutCfgUri=$(jq .data[$n].readoutCfgUri ${DATA})
 				
-				if  [[ "$runDefinition" == *"SYNTHETIC"* ]] && [[ $nDetectors > 13 ]];then
+				if  [[ "$runDefinition" == *"SYNTHETIC"* ]] && [[ $nDetectors > 10 ]];then
 					histlist_short=
 					time_standby=0
 					time_deployed=0
 					time_configured=0
-					time_running=0
+					time_stopping=0
+					time_stopped=0
+					time_destroyed=0
 					h=-1
 					hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
 					for hi in ${hist}; do
@@ -184,24 +186,34 @@ for env in ${ENVS}; do
 						if [[ "$hi" == *"CONFIGURED"* ]];
 						then
 							(( time_configured == 0)) && time_configured=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+							(( time_running > 0)) && time_stopped=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
 						fi
 						if [[ "$hi" == *"RUNNING"* ]];
 						then
 							(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
 						fi
+						if [[ "$hi" == *"DESTROYED"* ]];
+						then
+							(( time_destroyed == 0)) && time_destroyed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
 	
 					done
+					(( time_stopped == 0 )) && time_stopped=$endofRun
 					
 					time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
 					time_to_configured_local=$(( (time_configured-time_deployed)/1000))
 					time_to_running_local=$(( (time_running-time_configured)/1000))
-					
+					time_to_stopping_local=$(( (time_stopped-endofRun)/1000))
+					time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
 					startofRun=$(jq .data[$n].timeO2Start ${DATA})
 					endofRun=$(jq .data[$n].timeO2End ${DATA})
-					 if [[ "$readoutCfgUri" == *"LHC2"* ]];then 
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,"REPLAY",$(timeToDate $startofRun),$(timeToDate $endofRun),,,,,,$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local 
+					nEPN=$(jq ".data[$n].nEpns" ${DATA})
+					nFLP=$(jq ".data[$n].nFlps" ${DATA})
+
+					if [[ "$readoutCfgUri" == *"LHC2"* ]];then 
+						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
 					else
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),,,,,,,,,$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local 
+						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
 					fi
 				fi
 			fi

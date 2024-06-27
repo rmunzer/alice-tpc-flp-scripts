@@ -246,6 +246,8 @@ for env in ${ENVS}; do
 					time_deployed=0
 					time_configured=0
 					time_running=0
+					time_stopped=0
+					time_destroyed=0
 					h=-1
 					for hi in ${hist}; do
 						h=$((h+1))
@@ -260,10 +262,15 @@ for env in ${ENVS}; do
 						if [[ "$hi" == *"CONFIGURED"* ]];
 						then
 							(( time_configured == 0)) && time_configured=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+							(( time_running > 0)) && time_stopped=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
 						fi
 						if [[ "$hi" == *"RUNNING"* ]];
 						then
 							(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
+						if [[ "$hi" == *"DESTROYED"* ]];
+						then
+							(( time_destroyed == 0)) && time_destroyed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
 						fi
 						if [[ $histlist_short == "" ]];
 						then	
@@ -272,10 +279,15 @@ for env in ${ENVS}; do
 							histlist_short=$histlist_short-${histlocal:1:1}
 						fi
 					done
+					(( time_stopped == 0 )) && time_stopped=$endofRun
 					time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
 					time_to_configured_local=$(( (time_configured-time_deployed)/1000))
 					time_to_running_local=$(( (time_running-time_configured)/1000))
-					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local 
+					time_to_stopping_local=$(( (time_stopped-endofRun)/1000))
+					time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
+					nEPN=$(jq ".data.runs[$n].nEpns" ${DATA})
+					nFLP=$(jq ".data.runs[$n].nFlps" ${DATA})
+					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
 					if [[ $calibfound == 0 ]];
 					then
 						first_physics_env_run=$first_physics_run
@@ -403,6 +415,8 @@ for runNumber in ${RUNS}; do
    fi
 
    goodEnd=$(jq .data.runs[$n].timeTrgEnd ${DATA})
+   
+	(( dbg )) && echo -n $(timeToDate  $goodStart) -  $(timeToDate  $goodEnd) - $(( (goodEnd - goodStart)/1000 ))
 
 done
 
