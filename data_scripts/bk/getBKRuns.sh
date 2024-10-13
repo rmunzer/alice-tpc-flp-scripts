@@ -8,6 +8,8 @@
 # Temporary files used to cache the detailed data
 DATA="/tmp/json-`basename $0`.$$"
 DATA_CTP="/tmp/json_ctp-`basename $0`.$$"
+DATA_TRIGGERS="/tmp/json_triggers-`basename $0`.$$"
+DATA_FILL="/tmp/json_fill-`basename $0`.$$"
 
 # List of ALICE detectors
 # DETS="CPV EMC FDD FT0 FV0 HMP ITS MCH MFT MID PHS TOF TPC TRD TST ZDC"
@@ -80,6 +82,7 @@ if (( fillNo > 0 )); then
 fi
 
 URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999&token=${BK_TOKEN}"
+URL_FILL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo?token=${BK_TOKEN}"
 #(( dbg )) && 
 (( dbg )) && printf "URL:\"%s\"\n" "${URL}" >&2
 
@@ -88,14 +91,17 @@ if [[ $hostname == *"alio2-cr1"* ]]; then
 	(( dbg )) && echo "Run internally"
 	declare -x http_proxy="10.161.69.44:8080"
 	declare -x https_proxy="10.161.69.44:8080"
-	(( dbg )) && echo wget -q "${URL}" --no-check-certificate -O ${DATA}
-	wget -q "${URL}" --no-check-certificate -O ${DATA}
-	declare -x http_proxy=""
-	declare -x https_proxy=""
-else
-	(( dbg )) && echo "Run externally"
-	wget -q "${URL}"  -O ${DATA}
 fi
+(( dbg )) && echo wget -q "${URL}" --no-check-certificate -O ${DATA}
+(( dbg )) && echo wget -q "${URL_FILL}" --no-check-certificate -O ${DATA_FILL}
+wget -q "${URL}" --no-check-certificate -O ${DATA}
+wget -q "${URL_FILL}" --no-check-certificate -O ${DATA_FILL}
+declare -x http_proxy=""
+declare -x https_proxy=""
+
+b_colliding=`jq .data.fillingSchemeName ${DATA_FILL} | cut -f4 -d_`
+(( dbg )) && echo "Number of colliding Bunches" $b_colliding
+
 
 LINE+=$(printf "Run Number${SEP}")
 LINE+=$(printf "O2 start${SEP}")
@@ -172,7 +178,7 @@ printStr() {
 }
 
 
-if [ $getCTP = 1 ];
+if [ $getCTP = 1 ] && [ $fillNo -lt 10004 ];
 then
 	n=${NRUNS}
 	ctpruns=`echo $RUNS | sed -e "s/\s\+/,/g"`
@@ -271,6 +277,34 @@ for runNumber  in ${RUNS}; do
    (( nDetectors < 2 )) && continue
    
    (( runDuration < minDuration )) && continue
+   
+   
+# get Trigger information from BK
+	if [[ $fillNo -gt 10003 ]];
+	then
+		URL2="https://ali-bookkeeping.cern.ch/api/trigger-counters/${runNumber}?token=${BK_TOKEN}"
+		if [[ $hostname == *"alio2-cr1"* ]]; then
+			(( dbg )) && echo "Run internally"
+			declare -x http_proxy="10.161.69.44:8080"
+			declare -x https_proxy="10.161.69.44:8080"
+		fi
+		(( dbg )) && echo wget -q "${URL2}" --no-check-certificate -O ${DATA_TRIGGERS}
+		wget -q "${URL2}" --no-check-certificate -O ${DATA_TRIGGERS}
+		(( dbg )) && echo "Trigger information collected"
+		triggerlength=`jq '.[] | length' ${DATA_TRIGGERS}`
+		
+		trigger_found=0;
+		ft0_triggers=0;
+		for trigger_class  in `seq 1 $triggerlength`; do
+			className=`jq .data[$trigger_class].className ${DATA_TRIGGERS}`
+			if [[ "$className" == *"CMTVX-NONE-NOPF"* ]];
+			then	
+				trigger_found=1;
+				ft0_triggers=`jq .data[$trigger_class].lmb ${DATA_TRIGGERS}`
+				(( dbg )) && echo Trigger found: $ft0_triggers
+			fi
+		done
+	fi
 
 #printf "Passed\n" >&2
 
@@ -332,14 +366,28 @@ for runNumber  in ${RUNS}; do
    LINE+=$(printNum `jq .data[$n].tfFileSize ${DATA}`) # Par: 23
    
 
-   LINE+=$(printNum `jq .data[$n].trigger ${DATA}`)  # Par: 24
-   LINE+=$(printNum `jq .data[$n].mu ${DATA}`) # Par: 25 
-   LINE+=$(printNum `jq .data[$n].rate ${DATA}`)  # Par: 26
+
+   if [[ $fillNo -lt 10004 ]]; then  
+		LINE+=$(printNum `jq .data[$n].trigger ${DATA}`)  # Par: 24
+		LINE+=$(printNum `jq .data[$n].mu ${DATA}`) # Par: 25 
+		LINE+=$(printNum `jq .data[$n].trigger_ft0 ${DATA}`)  # Par: 26
+		LINE+=$(printNum `jq .data[$n].mu_ft0 ${DATA}`) # Par: 27
+   else
    
-      LINE+=$(printNum `jq .data[$n].trigger_ft0 ${DATA}`)  # Par: 27
-   LINE+=$(printNum `jq .data[$n].mu_ft0 ${DATA}`) # Par: 28
-   LINE+=$(printNum `jq .data[$n].rate_ft0 ${DATA}`)  # Par: 29
-   LINE+=$(printStr `jq .data[$n].lhcFill.beamType ${DATA}`) # Par: 30
+		LINE+=$(printNum `jq .data[$n].trigger ${DATA}`)  # Par: 24
+		LINE+=$(printNum `jq .data[$n].mu ${DATA}`) # Par: 25 
+		LINE+=$(printNum $ft0_triggers)  # Par: 26
+		mu_ft0=0;
+		if [[ $runDuration -gt 0 ]]; then
+			(( dbg )) && echo  $ft0_triggers - $runDuration $b_colliding $rat_ft0 
+			rat_ft0=`bc -l <<< "scale=10; $ft0_triggers / $runDuration / 11245 / $b_colliding"`
+			(( dbg )) && echo  Step 1: $rat_ft0 
+			mu_ft0=`bc -l <<< "scale=8; -l(1-$rat_ft0)"`
+			(( dbg )) && echo  Step 2: $mu_ft0 
+		fi
+			LINE+=$(printNum $mu_ft0) # Par: 27
+	fi
+   LINE+=$(printStr `jq .data[$n].lhcFill.beamType ${DATA}`) # Par: 28
      
    detectors="`jq .data[$n].detectors ${DATA}`"
    for d in ${DETS}; do
@@ -355,9 +403,9 @@ for runNumber  in ${RUNS}; do
    if [ x"$selection" = "x" ]; then
        echo $LINE | tr "$SEP" "${SEP_CSV}"
    else
-	   beamtype=`echo $LINE | cut -d"$SEP" -f 30 | tr "$SEP" "${SEP_CSV}"`
+	   beamtype=`echo $LINE | cut -d"$SEP" -f 28 | tr "$SEP" "${SEP_CSV}"`
 	   if [[ $beamtype == *"PROTON"* && $getCTP -eq 1 ]]; then
-			echo $LINE | cut -d"$SEP" -f $selection,27,28 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+			echo $LINE | cut -d"$SEP" -f $selection,26,27 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
 		elif [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
 			echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
 	   else
@@ -367,6 +415,7 @@ for runNumber  in ${RUNS}; do
    fi
    
 done
-
+declare -x http_proxy=""
+declare -x https_proxy=""
 #rm -f ${DATA}
 
