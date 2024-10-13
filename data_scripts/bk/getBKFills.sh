@@ -287,7 +287,8 @@ for env in ${ENVS}; do
 					time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
 					nEPN=$(jq ".data.runs[$n].nEpns" ${DATA})
 					nFLP=$(jq ".data.runs[$n].nFlps" ${DATA})
-					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
+					startClickTime=$(jq ".data.runs[$n].timeO2Start" ${DATA}) 
+					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
 					if [[ $calibfound == 0 ]];
 					then
 						first_physics_env_run=$first_physics_run

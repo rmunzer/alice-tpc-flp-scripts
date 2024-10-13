@@ -9,6 +9,7 @@
 *.d
 *.root
 *.dat
+*output.txt
 check_links_status.sh
 links_script.sh
 pat_script.sh
