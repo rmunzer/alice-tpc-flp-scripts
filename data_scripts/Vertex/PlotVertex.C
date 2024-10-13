@@ -63,7 +63,7 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
 	  endTimeOrRun*=1000;
 	  cout<<"Time period: "<<startTimeOrRun<<"-"<<endTimeOrRun<<endl;
   }
-  else if(fillN>10000){
+  else if(fillN>50000){
 	  startTimeOrRun=fillN ;
 	  endTimeOrRun=fillNstop;
 	  startTimeOrRun*=1000;
@@ -210,7 +210,7 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
     }
     if( ( runNumber_set < 0 ) || ( runNumber_set == runNumber ) ){
 
-      double pos_x=obj->getX()*10.;  // Convert to mm
+      double pos_x=obj->getX()*-10.;  // Convert to mm
       double pos_y=obj->getY()*10.;  // Convert to mm
       double pos_z=obj->getZ()*-10.;  // Convert to mm. Invert due agree with Machine conventions 
 	  double pos_x_sigma=obj->getSigmaX()*10.;
