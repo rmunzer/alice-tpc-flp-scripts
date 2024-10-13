@@ -56,7 +56,7 @@ if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
 from="-13 days"
-to="now"
+to="-7 days"
 
 
 URL="https://ali-bookkeeping.cern.ch/api/runs?filter[definitions]=SYNTHETIC&filter[o2start][from]=`date --date=\"$from\" +%s`000&filter[o2start][to]=`date --date=\"$to\" +%s`999&token=${BK_TOKEN}"
@@ -171,6 +171,7 @@ for env in ${ENVS}; do
 					time_stopping=0
 					time_stopped=0
 					time_destroyed=0
+					time_running=0
 					h=-1
 					hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
 					for hi in ${hist}; do
@@ -198,22 +199,24 @@ for env in ${ENVS}; do
 						fi
 	
 					done
-					(( time_stopped == 0 )) && time_stopped=$endofRun
-					
-					time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
-					time_to_configured_local=$(( (time_configured-time_deployed)/1000))
-					time_to_running_local=$(( (time_running-time_configured)/1000))
-					time_to_stopping_local=$(( (time_stopped-endofRun)/1000))
-					time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
 					startofRun=$(jq .data[$n].timeO2Start ${DATA})
 					endofRun=$(jq .data[$n].timeO2End ${DATA})
 					nEPN=$(jq ".data[$n].nEpns" ${DATA})
 					nFLP=$(jq ".data[$n].nFlps" ${DATA})
+					startClickTime=$(jq ".data[$n].timeO2Start" ${DATA}) 
+					(( time_stopped == 0 )) && time_stopped=$endofRun
+					
+					time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
+					time_to_configured_local=$(( (time_configured-time_deployed)/1000))
+					time_to_running_local=$(( (time_running-startofRun)/1000))
+					time_to_stopping_local=$(( (time_stopped-endofRun)/1000))
+					time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
+
 
 					if [[ "$readoutCfgUri" == *"LHC2"* ]];then 
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
+						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $time_stopped),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
 					else
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
+						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
 					fi
 				fi
 			fi
