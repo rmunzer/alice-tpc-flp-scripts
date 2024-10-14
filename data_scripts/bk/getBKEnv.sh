@@ -25,6 +25,8 @@ usage() {
    printf "   -s selection\tfields selection (comma-separated)\n"
    printf "   -c Fill was used for calibration runs"
    printf "   -e Environment and Calibration stats"
+   printf "   -f Start period (default: -7 days)"
+   printf "   -t Finish period (default: now)"
 }
 
 dbg=0
@@ -32,13 +34,17 @@ fillNo=0
 selection=""
 CalibFill=""
 calibandenv=0
-while getopts F:s:dhce? flag; do
+from="-7 days"
+to="now"
+while getopts F:s:f:t:dhce? flag; do
    case "${flag}" in
       F) fillNo="${OPTARG}";;
       d) dbg=1;;
       c) CalibFill="C";;
       s) selection="${OPTARG}";;
       e) calibandenv=1;;
+      f) from="${OPTARG}";;
+      t) to="${OPTARG}";;
       h|*) usage; exit 1;;
    esac
 done
@@ -55,8 +61,6 @@ fi
 if (( fillNo > 0 )); then
    O="filter[fillNumbers]=${fillNo}"   
 fi
-from="-13 days"
-to="-7 days"
 
 
 URL="https://ali-bookkeeping.cern.ch/api/runs?filter[definitions]=SYNTHETIC&filter[o2start][from]=`date --date=\"$from\" +%s`000&filter[o2start][to]=`date --date=\"$to\" +%s`999&token=${BK_TOKEN}"
