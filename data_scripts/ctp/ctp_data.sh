@@ -25,7 +25,7 @@ usageAndExit() {
 
 # ===| default variable values |================================================
 #num=1698605174847
-run=545367
+run=0
 fill=9319
 test=1
 
@@ -55,7 +55,7 @@ if [[ -z "$run" ]]; then
 fi
 
 # ===| command building and execution |=========================================
-cmd="alias c++='gcc -xc++ -lstdc++ -shared-libgcc';root.exe -l -n -q -x ~/alice-tpc-flp-scripts/data_scripts/ctp/GetScalersForRun.C++'(\"[$run]\",$fill)'"
+cmd="alias c++='gcc -xc++ -lstdc++ -shared-libgcc';root.exe -l -n -q -b  -x ~/alice-tpc-flp-scripts/data_scripts/ctp/GetScalersForRun.C++'(\"[$run]\",$fill)' | grep -v Error"
 
 echo "running: $cmd"
-eval $cmd
+eval $cmd 

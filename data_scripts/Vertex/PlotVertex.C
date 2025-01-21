@@ -38,8 +38,9 @@ size_t getAnswerFunction(void* ptr, size_t size, size_t nmemb, std::string* data
 }
 
 
-void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",string output_folder_txt="./",bool plot_vertex=true)
+void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",string output_folder_txt="./",bool plot_vertex=true, string verbosity="error")
 {
+  fair::Logger::SetConsoleSeverity(verbosity);
   mCcdbApi.init("http://o2-ccdb.internal");
   long startTimeOrRun = 0;
   long endTimeOrRun = 0;
@@ -51,6 +52,7 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
   string output_file_root=output_folder+""+std::to_string(fillN)+"_lumi_ALICE.root";
   string output_file_png=output_folder+""+std::to_string(fillN)+"_lumi_ALICE.png";
   string output_file_mean_png=output_folder+""+std::to_string(fillN)+"_lumi_ALICE_mean.png";
+  string output_file_sigma_z_png=output_folder+""+std::to_string(fillN)+"_sigma_z_ALICE.png";
   
   
   cout<<"Output File:"<<output_file<<endl;
@@ -183,6 +185,9 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
   auto xpos = new TGraph;
   auto ypos = new TGraph;
   auto zpos = new TGraph;
+  auto xsigma = new TGraph;
+  auto ysigma = new TGraph;
+  auto zsigma = new TGraph;
   string TH1D_name="Z Position - Fill "+std::to_string(fillN);
   if(fillN<100){
 		  TH1D_name="Z Position - Week "+std::to_string(fillN);
@@ -229,10 +234,17 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
       xpos->AddPoint(double(startValidity / 1000.), pos_x);
       ypos->AddPoint(double(startValidity / 1000.), pos_y);
       zpos->AddPoint(double(startValidity / 1000.), pos_z);
+      xsigma->AddPoint(double(startValidity / 1000.), pos_x_sigma);
+      ysigma->AddPoint(double(startValidity / 1000.), pos_y_sigma);
+      zsigma->AddPoint(double(startValidity / 1000.), pos_z_sigma);
 	  zpos_mean->Fill(pos_z);
 
-
-      fmt::print("fill: {} run: {}, start: {}, x: {} cm,y: {} cm,z: {} cm\n", fillN, runNumber, startValidity / 1000., obj->getX(), obj->getY(), obj->getZ());
+	  if( fillN < 100){	
+		fmt::print("week: {} run: {}, start: {}, x: {} cm,y: {} cm,z: {} cm, sx: {} cm,sy: {} cm,sz: {} cm\n", fillN, runNumber, startValidity / 1000., pos_x, pos_y , pos_z,pos_x_sigma,pos_y_sigma,pos_z_sigma);
+	  }
+	  else{
+		fmt::print("fill: {} run: {}, start: {}, x: {} cm,y: {} cm,z: {} cm, sx: {} cm,sy: {} cm,sz: {} cm\n", fillN, runNumber, startValidity / 1000., pos_x, pos_y , pos_z,pos_x_sigma,pos_y_sigma,pos_z_sigma);
+	  }
 	  
 	  
       out <<fixed<<startValidity / 1000. <<" "<< 1 <<" "<< pos_x <<" "<<pos_x_sigma<<" "<< pos_y <<" "<< pos_y_sigma <<" "<< pos_z <<" "<< pos_z_sigma <<" "<< pos_xsu <<" "<< pos_ysu <<" "<< pos_zsu <<" "<< pos_xsu_sigma <<" "<< pos_ysu_sigma <<" "<< pos_zsu_sigma <<" "<< pos_ax <<" "<< pos_ay <<" "<< pos_ax_sigma <<" "<< pos_ay_sigma <<endl;
@@ -245,12 +257,10 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
 	  auto meanvert_mean = new TCanvas("Vertex Mean","Vertex",1800,600);
 	  zpos_mean->Draw();
 	  TImage *img_mean = TImage::Create();
-
-	   //img->FromPad(c, 10, 10, 300, 200);
 	  img_mean ->FromPad(meanvert_mean);
-
 	  img_mean ->WriteImage(output_file_mean_png.c_str());
 	  
+	if(1){ // Plot z vertex trend
 	  auto meanvert = new TCanvas("Vertex","Vertex",1800,600);
 	  meanvert->Divide(1,1,0,0);
 	  meanvert->cd(1);
@@ -279,7 +289,6 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
 	  TLine *l5=new TLine(xmin,0,xmax,0);
 	  l5->SetLineColor(kGreen);
 	  l5->Draw("");
-	  
 	  meanvert->Modified();
 	  meanvert->Update();
 	  auto azx = ((TH1*)zpos->GetHistogram())->GetXaxis();
@@ -290,13 +299,44 @@ void PlotVertex(int fillN = 9570,int fillNstop = 0,string output_folder="./",str
 	  azx->SetLabelSize(0.05);
 	  azy->SetRangeUser(-12,12.);
 	  azy->SetTitle("z [mm]");
-		TImage *img = TImage::Create();
-
-	   //img->FromPad(c, 10, 10, 300, 200);
-	   img->FromPad(meanvert);
-
-	   img->WriteImage(output_file_png.c_str());
-
+	  TImage *img = TImage::Create();
+	  img->FromPad(meanvert);
+	  img->WriteImage(output_file_png.c_str());
 	  meanvert->SaveAs(output_file_root.c_str());
+	}
+	if(1){ // Plot z-sigma trend
+	  auto vertsigmax = new TCanvas("Vertex","Vertex",1800,600);
+	  vertsigmax->Divide(1,1,0,0);
+	  vertsigmax->cd(1);
+	  string titles="Sigma z - Fill "+std::to_string(fillN);
+	  if(fillN<100){
+		  titles="Sigma z - Week "+std::to_string(fillN);
+	  }
+	  zsigma->SetTitle(titles.c_str());
+	  zsigma->SetMarkerStyle(20);
+	  zsigma->SetMarkerSize(1);
+	  zsigma->Draw("ap");
+	  auto xmin=zsigma->GetXaxis()->GetXmin();
+	  auto xmax=zsigma->GetXaxis()->GetXmax();
+	  TLine *l1s=new TLine(xmin,70,xmax,70);
+	  l1s->SetLineColor(kRed);
+	  l1s->Draw("");
+	  
+	  vertsigmax->Modified();
+	  vertsigmax->Update();
+	  auto azxs = ((TH1*)zsigma->GetHistogram())->GetXaxis();
+	  auto azys = ((TH1*)zsigma->GetHistogram())->GetYaxis();
+	  azxs->SetTimeDisplay(1);
+	  azxs->SetTimeFormat("#splitline{%d.%m.%y}{%H:%M:%S}");
+	  azxs->SetLabelOffset(0.025);
+	  azxs->SetLabelSize(0.05);
+	  azys->SetRangeUser(0,120.);
+	  azys->SetTitle("z [mm]");
+		TImage *imgs = TImage::Create();
+		imgs->FromPad(vertsigmax);
+
+	   imgs->WriteImage(output_file_sigma_z_png.c_str());
+	}
+
   }
 }

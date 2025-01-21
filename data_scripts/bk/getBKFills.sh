@@ -47,10 +47,29 @@ if (( dbg )); then
    printf "\tfrom:'%s' to:'%s' fillNo:'%d'\n" "${from}" "${to}" "${fillNo}"
 fi >&2
 # Get delivery from masi file:
-mass_summary=`ssh lhcif "cat massiFiles/$fillNo/${fillNo}_summary_ALICE.txt"`
-delivered_lumi=`echo $mass_summary | cut -f 4 -d" "`
-delivered_lumi=`echo "scale=1; $delivered_lumi /1000" | bc`
+massi_folder="/home/rc/massi-files/$fillNo"
+if [ ! -d "$massi_folder" ]; then
+  echo "$massi_folder does not exist."
+  mkdir -v $massi_folder
+fi
+massi_summary="${fillNo}_summary_ALICE.txt"
+if [ ! -e "$massi_folder/$massi_summary" ]; then
+	echo "$massi_folder/$massi_summary does not exist -> retrieve it"
+	scp lhcif:massiFiles/$fillNo/${massi_summary} $massi_folder
+fi
+massi_detail="${fillNo}_lumi_ALICE.txt"
+if [ ! -e "$massi_folder/$massi_detail" ]; then
+	echo "$massi_folder/$massi_detail does not exist -> retrieve it"
+	scp lhcif:massiFiles/$fillNo/${massi_detail} ${massi_folder}
+fi
 
+delivered_lumi=`cat $massi_folder/$massi_summary | cut -f 4 | sed '1p;d'`
+delivered_lumi=`echo "scale=7; $delivered_lumi /1000" | bc`
+peak_lumi=`cat $massi_folder/$massi_summary | cut -f 3 | sed '1p;d'`
+(( dbg )) && echo Delivery Lumi from summary: ${delivered_lumi}
+delivered_lumi_2=`cat $massi_folder/${massi_detail} | cut -f 3 | awk '{s+=$1} END {print s}'`
+delivered_lumi_2=`echo "scale=7; $delivered_lumi_2 *60/1000" | bc`
+(( dbg )) && echo Delivery Lumi from single files: ${delivered_lumi_2}
 O=""
 if [ "${from}${to}" ]; then
    O=""
@@ -248,6 +267,7 @@ for env in ${ENVS}; do
 					time_running=0
 					time_stopped=0
 					time_destroyed=0
+					error_found=0
 					h=-1
 					for hi in ${hist}; do
 						h=$((h+1))
@@ -267,6 +287,10 @@ for env in ${ENVS}; do
 						if [[ "$hi" == *"RUNNING"* ]];
 						then
 							(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+						fi
+						if [[ "$hi" == *"ERROR"* ]];
+						then
+							error_found=1
 						fi
 						if [[ "$hi" == *"DESTROYED"* ]];
 						then
@@ -288,7 +312,7 @@ for env in ${ENVS}; do
 					nEPN=$(jq ".data.runs[$n].nEpns" ${DATA})
 					nFLP=$(jq ".data.runs[$n].nFlps" ${DATA})
 					startClickTime=$(jq ".data.runs[$n].timeO2Start" ${DATA}) 
-					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
+					(( dbgt )) && echo $id,$fillNo,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
 					if [[ $calibfound == 0 ]];
 					then
 						first_physics_env_run=$first_physics_run
@@ -467,12 +491,13 @@ fi
 (( dbg )) && echo Efficiency loss at End of Fill: "$effEnd%"
 
 
-
+filling_schema=$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")
+coll_bunches=`echo $filling_schema | cut -f 4 -d_`
 echo -n "$fillNo,$eff%"
 printf ',%02d:%02d:%02d' $((meanDurationSec/3600)) $((meanDurationSec%3600/60)) $((meanDurationSec%60));
 echo -n ",${meanDurationPerc}%,${beforeFirstPerc}%"
 printf ',%02d:%02d:%02d' $((beforeFirstSec/3600)) $((beforeFirstSec%3600/60)) $((beforeFirstSec%60))
-echo -n ",${effEnd}%,,$(timeToDate $sbStart)"
+echo -n ",${effEnd}%,$coll_bunches,$(timeToDate $sbStart)"
 printf ',%02d:%02d:%02d' $((sbDuration/3600)) $((sbDuration%3600/60)) $((sbDuration%60))
 printf ',%02d:%02d:%02d' $((goodDurationSec/3600)) $((goodDurationSec%3600/60)) $((goodDurationSec%60))
 if [[ $calibandenv == 1 ]];
@@ -482,7 +507,8 @@ echo -n ",$(timeToDate $startofCalib),$(timeToDate $endofCalib)"
 printf ',%02d:%02d:%02d' $((calib_duration/3600)) $((calib_duration%3600/60)) $((calib_duration%60))
 echo ",$calib_detectors,$good_env,$failed_env",$first_physics_env,$(timeToDate $first_physics_env_time),$first_physics_env_run,$first_physics_env_status,,$first_physics_run,$frist_physics_quality,$(timeToDate $first_physics_start), $frist_physics_id,$first_physics_eor
 else
-echo ",${delivered_lumi},${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")"
+echo ",${delivered_lumi},${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")",${peak_lumi}
+#echo ",${delivered_lumi}"
 fi
 
 

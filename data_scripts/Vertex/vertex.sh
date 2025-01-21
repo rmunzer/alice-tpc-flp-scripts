@@ -5,7 +5,7 @@ usage() {
 vertex.sh <required arguments> [optional arguments]
 
 required arguments
--f, --fill=        :  Fillnumber (9618), Weeknumber (e.g 19) , Timestamp (e.g. 1713484800-1715786054, ppprod-now , md1,vdmstart,vdmend,md2,ts1)
+-f, --fill=        :  Fillnumber (9618), Weeknumber (e.g 19) , Timestamp (e.g. 1713484800-1715786054, ppprod-now , md1,vdmstart,vdmend,md2,ts1,ppend)
 -m,--massicopy=    :  Copy files to Massifolder (default=0)
 
 optional arguments:
@@ -90,6 +90,26 @@ if [[ $fillN == *"-"* ]]; then
 	if [[ $val == "ts1" ]];
 		then
 			val=1718376401
+	fi
+	if [[ $val == "ppend" ]];
+		then
+			val=1729086882
+	fi
+	if [[ $val == "pprefstart" ]];
+		then
+			val=1730108405
+	fi
+	if [[ $val == "pprefend" ]];
+		then
+			val=1730714405
+	fi
+	if [[ $val == "PbPbstart" ]];
+		then
+			val=1730890805
+	fi
+	if [[ $val == "PbPbend" ]];
+		then
+			val=1732532405
 	fi
 	if [[ $i == 0 ]];
 	then

@@ -34,8 +34,8 @@ fillNo=0
 selection=""
 CalibFill=""
 calibandenv=0
-from="-7 days"
-to="now"
+from="-50 days"
+to="-14 days"
 while getopts F:s:f:t:dhce? flag; do
    case "${flag}" in
       F) fillNo="${OPTARG}";;
@@ -176,6 +176,7 @@ for env in ${ENVS}; do
 					time_stopped=0
 					time_destroyed=0
 					time_running=0
+					error_found=0
 					h=-1
 					hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
 					for hi in ${hist}; do
@@ -197,7 +198,11 @@ for env in ${ENVS}; do
 						then
 							(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
 						fi
-						if [[ "$hi" == *"DESTROYED"* ]];
+						if [[ "$hi" == *"ERROR"* ]];
+						then
+							error_found=1
+						fi
+						if [[ "$hi" == *"DESTROYED"* ]] || [[ "$hi" == *"DONE"* ]];
 						then
 							(( time_destroyed == 0)) && time_destroyed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
 						fi
@@ -218,9 +223,9 @@ for env in ${ENVS}; do
 
 
 					if [[ "$readoutCfgUri" == *"LHC2"* ]];then 
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $time_stopped),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
+						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $time_stopped),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
 					else
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local
+						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
 					fi
 				fi
 			fi

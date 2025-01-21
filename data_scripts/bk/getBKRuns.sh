@@ -280,6 +280,11 @@ for runNumber  in ${RUNS}; do
    
    
 # get Trigger information from BK
+	beamtype=`jq .data[$n].lhcFill.beamType ${DATA}`
+	trigger_class_select="CMTVX-NONE-NOPF"
+	if [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
+		trigger_class_select="C1ZNC-B-NOPF-CRU"
+    fi
 	if [[ $fillNo -gt 10003 ]];
 	then
 		URL2="https://ali-bookkeeping.cern.ch/api/trigger-counters/${runNumber}?token=${BK_TOKEN}"
@@ -297,10 +302,14 @@ for runNumber  in ${RUNS}; do
 		ft0_triggers=0;
 		for trigger_class  in `seq 1 $triggerlength`; do
 			className=`jq .data[$trigger_class].className ${DATA_TRIGGERS}`
-			if [[ "$className" == *"CMTVX-NONE-NOPF"* ]];
+			if [[ "$className" == *${trigger_class_select}* ]];
 			then	
 				trigger_found=1;
 				ft0_triggers=`jq .data[$trigger_class].lmb ${DATA_TRIGGERS}`
+				if [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
+					ft0_triggers=`jq .data[$trigger_class].l1a ${DATA_TRIGGERS}`
+					ft0_triggers=`echo "scale=0; $ft0_triggers" | bc`
+				fi
 				(( dbg )) && echo Trigger found: $ft0_triggers
 			fi
 		done
@@ -319,10 +328,17 @@ for runNumber  in ${RUNS}; do
    LINE+=$(timeToDate `jq .data[$n].endTime ${DATA}`) # Par: 5
      
    LINE+=$(timeToDate `jq .data[$n].timeTrgStart ${DATA}`) # Par: 6
+   if [[ $(timeToDate `jq .data[$n].timeTrgEnd ${DATA}`) == "|" ]]; then
+		(( dbg )) && echo "Run did not end - Take Now as timestamp"
+		now=`date +%s`
+		now=$((now * 1000))
+		LINE+=$(timeToDate $now) # Par: 7
+   else
    LINE+=$(timeToDate `jq .data[$n].timeTrgEnd ${DATA}`) # Par: 7
+   fi
      
    #(( runDuration > 0 )) && printf "%d" ${runDuration}
-   LINE+=$(printf '%02d:%02d:%02d' $((runDuration/3600)) $((runDuration%3600/60)) $((runDuration%60))) # Par: 8
+   LINE+=$(printf '%02d:%02d:%02d.000' $((runDuration/3600)) $((runDuration%3600/60)) $((runDuration%60))) # Par: 8
    LINE+=$(printf "${SEP}") 
      
    #printf "%s${SEP}" "`jq .data[$n].environmentId ${DATA}`"
@@ -403,11 +419,16 @@ for runNumber  in ${RUNS}; do
    if [ x"$selection" = "x" ]; then
        echo $LINE | tr "$SEP" "${SEP_CSV}"
    else
-	   beamtype=`echo $LINE | cut -d"$SEP" -f 28 | tr "$SEP" "${SEP_CSV}"`
+	   
+	   (( dbg )) && echo  BeamType: $beamtype 
 	   if [[ $beamtype == *"PROTON"* && $getCTP -eq 1 ]]; then
 			echo $LINE | cut -d"$SEP" -f $selection,26,27 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
 		elif [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
-			echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+			if [[ $fillNo -lt 10004 ]]; then  
+				echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+			else
+				echo $LINE | cut -d"$SEP" -f $selection,26,27 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+			fi
 	   else
 			echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
 	   fi
