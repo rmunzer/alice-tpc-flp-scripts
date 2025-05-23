@@ -5,7 +5,7 @@ usage() {
 vertex.sh <required arguments> [optional arguments]
 
 required arguments
--f, --fill=        :  Fillnumber (9618), Weeknumber (e.g 19) , Timestamp (e.g. 1713484800-1715786054, ppprod-now , md1,vdmstart,vdmend,md2,ts1,ppend)
+-f, --fill=        :  Fillnumber (9618), Weeknumber (e.g 19) , Timestamp (e.g. 1713484800-1715786054, pp_900_start,pp_900_stop,pp_prod_start)
 -m,--massicopy=    :  Copy files to Massifolder (default=0)
 
 optional arguments:
@@ -67,47 +67,63 @@ if [[ $fillN == *"-"* ]]; then
 		then
 			val=`date +"%s"`
 	fi
-	if [[ $val == "ppprod" ]];
+	if [[ $val == "pp_900_start" ]];
+		then
+			val=1745312400
+	fi	
+	if [[ $val == "pp_900_stop" ]];
+		then
+			val=1745712000
+	fi
+	if [[ $val == "pp_start" ]];
+		then
+			val=1746403200
+	fi
+	if [[ $val == "pp_prod_start" ]];
+		then
+			val=1713484800
+	fi		
+	if [[ $val == "ppprod_2024" ]];
 		then
 			val=1713484800
 	fi
-	if [[ $val == "md1" ]];
+	if [[ $val == "md1_2024" ]];
 		then
 			val=1715611601
 	fi
-	if [[ $val == "vdmstart" ]];
+	if [[ $val == "vdmstart_2024" ]];
 		then
 			val=1715849201
 	fi
-	if [[ $val == "vdmend" ]];
+	if [[ $val == "vdmend_2024" ]];
 		then
 			val=1716108401
 	fi
-	if [[ $val == "md2" ]];
+	if [[ $val == "md2_2024" ]];
 		then
 			val=1718376401
 	fi
-	if [[ $val == "ts1" ]];
+	if [[ $val == "ts1_2024" ]];
 		then
 			val=1718376401
 	fi
-	if [[ $val == "ppend" ]];
+	if [[ $val == "ppend_2024" ]];
 		then
 			val=1729086882
 	fi
-	if [[ $val == "pprefstart" ]];
+	if [[ $val == "pprefstart_2024" ]];
 		then
 			val=1730108405
 	fi
-	if [[ $val == "pprefend" ]];
+	if [[ $val == "pprefend_2024" ]];
 		then
 			val=1730714405
 	fi
-	if [[ $val == "PbPbstart" ]];
+	if [[ $val == "PbPbstart_2024" ]];
 		then
 			val=1730890805
 	fi
-	if [[ $val == "PbPbend" ]];
+	if [[ $val == "PbPbend_2024" ]];
 		then
 			val=1732532405
 	fi
