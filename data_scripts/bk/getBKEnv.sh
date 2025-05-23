@@ -27,6 +27,7 @@ usage() {
    printf "   -e Environment and Calibration stats"
    printf "   -f Start period (default: -7 days)"
    printf "   -t Finish period (default: now)"
+   printf "   -a Use cosmcis runs (default: 0)"
 }
 
 dbg=0
@@ -34,9 +35,10 @@ fillNo=0
 selection=""
 CalibFill=""
 calibandenv=0
-from="-50 days"
-to="-14 days"
-while getopts F:s:f:t:dhce? flag; do
+from="-20 days"
+to="-3 days"
+cosmics=0;
+while getopts F:s:f:t:dhcea? flag; do
    case "${flag}" in
       F) fillNo="${OPTARG}";;
       d) dbg=1;;
@@ -45,6 +47,7 @@ while getopts F:s:f:t:dhce? flag; do
       e) calibandenv=1;;
       f) from="${OPTARG}";;
       t) to="${OPTARG}";;
+	  a) cosmics=1;;
       h|*) usage; exit 1;;
    esac
 done
@@ -64,8 +67,14 @@ fi
 
 
 URL="https://ali-bookkeeping.cern.ch/api/runs?filter[definitions]=SYNTHETIC&filter[o2start][from]=`date --date=\"$from\" +%s`000&filter[o2start][to]=`date --date=\"$to\" +%s`999&token=${BK_TOKEN}"
+
+if [[ $cosmics == 1 ]]; then
+	URL="https://ali-bookkeeping.cern.ch/api/runs?filter[definitions]=COSMICS&filter[o2start][from]=`date --date=\"$from\" +%s`000&filter[o2start][to]=`date --date=\"$to\" +%s`999&token=${BK_TOKEN}"
+fi
+
 URL2="https://ali-bookkeeping.cern.ch/api/environments?token=${BK_TOKEN}"
 echo $URL
+echo $URL2
 hostname=`hostname`
 if [[ $hostname == *"alio2-cr1"* ]]; then
 	(( dbg )) && echo "Run internally"
@@ -73,7 +82,6 @@ if [[ $hostname == *"alio2-cr1"* ]]; then
 	declare -x https_proxy="10.161.69.44:8080"
 	(( dbg )) && echo wget -q "${URL}" --no-check-certificate -O ${DATA}
 	wget -q "${URL}" --no-check-certificate -O ${DATA}
-	wget -q "${URL2}" --no-check-certificate -O ${DATA2}
 	declare -x http_proxy=""
 	declare -x https_proxy=""
 else
@@ -89,8 +97,7 @@ fi
 LINE=""
 
 RUNS="`jq .data[].runNumber ${DATA}`"
-ENVS="`jq .data[].createdAt ${DATA2}`"
-if [[ $dbg -gt 0 ]];then echo $RUNS;fi
+(( dbg )) && echo $RUNS
 NRUNS=$(( `echo "${RUNS}" | wc -l` ))
 if (( NRUNS > 998 )); then
    echo "Too many runs, please reduce the time range" >&2
@@ -143,96 +150,100 @@ first_physics_id=""
 calib_detectors=""
 run_before=0
 dbgt=1
-
-for env in ${ENVS}; do
-	e=$((e+1))
-	envStartloc=$env
-	(( $env > $sbEndloc )) && continue
-	
-	id=$(jq ".data[$e].id" ${DATA2})
-	(( $env < $sbStartloc )) && run_before=$(( run_before + 1))
-	(( run_before > 10 )) && break
-	(( run_before > 10 )) && break
-	envRuns=$(jq ".data[$e].runs[].runNumber" ${DATA2})
-	NenvRuns=$(( `echo "${envRuns}" | wc -l` ))	
-	if [[ $envRuns != "" ]];
-	then
-		runN=$(jq ".data[$e].runs[].runNumber" ${DATA2})
-		n=-1
-		for runNumber in ${RUNS}; do
-			n=$((n+1))
-			if [[ $runNumber == $runN ]];
-			then
-				nDetectors=$(( `jq .data[$n].nDetectors ${DATA}` ))
-				runDefinition=$(jq .data[$n].definition ${DATA})
-				readoutCfgUri=$(jq .data[$n].readoutCfgUri ${DATA})
-				
-				if  [[ "$runDefinition" == *"SYNTHETIC"* ]] && [[ $nDetectors > 10 ]];then
-					histlist_short=
-					time_standby=0
-					time_deployed=0
-					time_configured=0
-					time_stopping=0
-					time_stopped=0
-					time_destroyed=0
-					time_running=0
-					error_found=0
-					h=-1
-					hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
-					for hi in ${hist}; do
-						h=$((h+1))
-						if [[ "$hi" == *"STANDBY"* ]];
-						then
-							(( time_standby == 0)) && time_standby=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
-						fi
-						if [[ "$hi" == *"DEPLOYED"* ]];
-						then
-							(( time_deployed == 0)) && time_deployed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
-						fi
-						if [[ "$hi" == *"CONFIGURED"* ]];
-						then
-							(( time_configured == 0)) && time_configured=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
-							(( time_running > 0)) && time_stopped=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
-						fi
-						if [[ "$hi" == *"RUNNING"* ]];
-						then
-							(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
-						fi
-						if [[ "$hi" == *"ERROR"* ]];
-						then
-							error_found=1
-						fi
-						if [[ "$hi" == *"DESTROYED"* ]] || [[ "$hi" == *"DONE"* ]];
-						then
-							(( time_destroyed == 0)) && time_destroyed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
-						fi
-	
-					done
-					startofRun=$(jq .data[$n].timeO2Start ${DATA})
-					endofRun=$(jq .data[$n].timeO2End ${DATA})
-					nEPN=$(jq ".data[$n].nEpns" ${DATA})
-					nFLP=$(jq ".data[$n].nFlps" ${DATA})
-					startClickTime=$(jq ".data[$n].timeO2Start" ${DATA}) 
-					(( time_stopped == 0 )) && time_stopped=$endofRun
-					
-					time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
-					time_to_configured_local=$(( (time_configured-time_deployed)/1000))
-					time_to_running_local=$(( (time_running-startofRun)/1000))
-					time_to_stopping_local=$(( (time_stopped-endofRun)/1000))
-					time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
-
-
-					if [[ "$readoutCfgUri" == *"LHC2"* ]];then 
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $time_stopped),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
-					else
-						(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
-					fi
-				fi
-			fi
-		done
+(( dbg )) && echo $ENVS
+n=-1
+for runNumber in ${RUNS}; do
+	n=$((n+1))
+	URL2="https://ali-bookkeeping.cern.ch/api/environments?filter[runNumbers]=${runNumber}&token=${BK_TOKEN}"
+	if [[ $hostname == *"alio2-cr1"* ]]; then
+		declare -x http_proxy="10.161.69.44:8080"
+		declare -x https_proxy="10.161.69.44:8080"
 	fi
-
-
+	wget -q "${URL2}" --no-check-certificate -O ${DATA2}
+	if [[ $hostname == *"alio2-cr1"* ]]; then	
+		declare -x http_proxy=""
+		declare -x https_proxy=""
+	fi
+	runN=$(jq ".data[$e].runs[].runNumber" ${DATA2})
+	(( dbg )) && echo RunNumber: $runN - $runNumber
+	if [[ $runNumber == $runN ]];
+	then
+		nDetectors=$(( `jq .data[$n].nDetectors ${DATA}` ))
+		runDefinition=$(jq .data[$n].definition ${DATA})
+		readoutCfgUri=$(jq .data[$n].readoutCfgUri ${DATA})
+		e=0
+		env=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+		id=$(jq ".data[$e].id" ${DATA2})
+		
+		if   [[ $nDetectors > 10 ]];then
+			histlist_short=
+			time_standby=0
+			time_deployed=0
+			time_configured=0
+			time_stopping=0
+			time_stopped=0
+			time_destroyed=0
+			time_running=0
+			error_found=0
+			h=-1
+			hist=$(jq ".data[$e].historyItems[].status" ${DATA2})
+			for hi in ${hist}; do
+					h=$((h+1))
+				if [[ "$hi" == *"STANDBY"* ]]; then
+					(( time_standby == 0)) && time_standby=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+				fi
+				if [[ "$hi" == *"DEPLOYED"* ]]; then
+					(( time_deployed == 0)) && time_deployed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+				fi
+				if [[ "$hi" == *"CONFIGURED"* ]]; then
+					(( time_configured == 0)) && time_configured=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+					(( time_running > 0)) && time_stopped=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+				fi
+				if [[ "$hi" == *"RUNNING"* ]]; then
+					(( time_running == 0)) && time_running=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+				fi
+				if [[ "$hi" == *"ERROR"* ]]; then
+					error_found=1
+				fi
+				if [[ "$hi" == *"DESTROYED"* ]] || [[ "$hi" == *"DONE"* ]]; then
+					(( time_destroyed == 0)) && time_destroyed=$(jq ".data[$e].historyItems[$h].createdAt" ${DATA2})
+				fi
+			done
+			startofTrigger=$(jq .data[$n].timeTrgStart ${DATA})
+			endofTrigger=$(jq .data[$n].timeTrgEnd ${DATA})
+			startofRun=$(jq .data[$n].timeO2Start ${DATA})
+			endofRun=$(jq .data[$n].timeO2End ${DATA})
+			nEPN=$(jq ".data[$n].nEpns" ${DATA})
+			nFLP=$(jq ".data[$n].nFlps" ${DATA})
+			startClickTime=$(jq ".data[$n].timeO2Start" ${DATA}) 
+			(( time_stopped == 0 )) && time_stopped=$endofRun
+		
+			(( dbg )) && echo time_StartofTrigger:$(timeToDate $startofTrigger)
+			(( dbg )) && echo time_endofTrigger:$(timeToDate $endofTrigger)
+			(( $startofTrigger == 0 )) && startofTrigger=$startofRun
+			(( $endofTrigger == 0 )) && endofTrigger=$endofRun			
+			time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
+			time_to_configured_local=$(( (time_configured-time_deployed)/1000))
+			time_to_running_local=$(( (startofRun-time_running)/1000))
+			time_to_stopping_local=$(( (time_stopped-endofTrigger)/1000))
+			time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
+			(( dbg )) && echo time_standby:$(timeToDate $time_standby)
+			(( dbg )) && echo time_deployed:$(timeToDate $time_deployed)
+			(( dbg )) && echo time_configured:$(timeToDate $time_configured)
+			(( dbg )) && echo time_StartofRun:$(timeToDate $startofRun)
+			(( dbg )) && echo time_StartofTrigger:$(timeToDate $startofTrigger)
+			(( dbg )) && echo time_running:$(timeToDate $time_running)
+			(( dbg )) && echo time_endofRun:$(timeToDate $endofRun)
+			(( dbg )) && echo time_endofTrigger:$(timeToDate $endofTrigger)
+			(( dbg )) && echo time_stopped:$(timeToDate $time_stopped)
+			(( dbg )) && echo time_detroyed:$(timeToDate $time_destroyed)
+			if [[ "$readoutCfgUri" == *"LHC2"* ]];then 
+				(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,"REPLAY",$(timeToDate $time_stopped),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
+			else
+				(( dbgt )) && echo $id,,$(timeToDate $env),$runN,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofRun),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
+			fi
+		fi
+	fi
 done
 
 #rm -f ${DATA}

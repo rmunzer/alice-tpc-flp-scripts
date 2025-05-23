@@ -31,6 +31,7 @@ usage() {
    printf "   -c get ctp information\n"
    printf "   -g \tgood runs only\n"
    printf "   -p \tOnly Physics Runs\n"
+   printf "   -a \tGet Cosmics Runs\n"
 }
 
 from="-7 days"
@@ -44,7 +45,8 @@ getCTP=0
 ft0=0
 zdc=0
 onlyPhysics=0
-while getopts f:t:F:D:s:gdhclzp? flag; do
+getCosmics=0
+while getopts f:t:F:D:s:gdhclzpa? flag; do
    case "${flag}" in
       f) from="${OPTARG}";;
       t) to="${OPTARG}";;
@@ -57,6 +59,7 @@ while getopts f:t:F:D:s:gdhclzp? flag; do
 	  l) ft0=1;;
 	  z) zdc=1;;
 	  p) onlyPhysics=1;;
+	  a) getCosmics=1;;
       h|*) usage; exit 1;;
    esac
 done
@@ -78,10 +81,14 @@ if [ "${from}${to}" ]; then
 fi
 
 if (( fillNo > 0 )); then
-   O="filter[fillNumbers]=${fillNo}&filter[definitions]=PHYSICS"   
+   if (( $getCosmics )); then
+		O="page[offset]=0&page[limit]=50&filter[definitions]=COSMICS"  
+   else
+	O="page[offset]=0&page[limit]=999&filter[fillNumbers]=${fillNo}&filter[definitions]=PHYSICS"   
+	fi
 fi
 
-URL="https://ali-bookkeeping.cern.ch/api/runs?$O&page[offset]=0&page[limit]=999&token=${BK_TOKEN}"
+URL="https://ali-bookkeeping.cern.ch/api/runs?$O&token=${BK_TOKEN}"
 URL_FILL="https://ali-bookkeeping.cern.ch/api/lhcFills/$fillNo?token=${BK_TOKEN}"
 #(( dbg )) && 
 (( dbg )) && printf "URL:\"%s\"\n" "${URL}" >&2
@@ -129,6 +136,7 @@ LINE+=$(printf "TF File Size${SEP}")
 LINE+=$(printf "ZDC Trigger${SEP}")
 LINE+=$(printf "Triggers${SEP}")
 LINE+=$(printf "Mu${SEP}")
+
 for d in ${DETS}; do
 
    LINE+=$(printf "$d IN${SEP}")
@@ -136,7 +144,7 @@ done
 LINE+=$(printf "\n")
 
 if [ x"$selection" = "x" ]; then
-    echo $LINE | tr "$SEP" "${SEP_CSV}"
+    (( dbg )) && echo $LINE | tr "$SEP" "${SEP_CSV}"
 else
 	if [[ $getCTP -eq 1 ]]; then
 	(( dbg )) && echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}"
@@ -144,7 +152,6 @@ else
 	(( dbg )) && echo $LINE | cut -d"$SEP" -f $selection | tr "$SEP" "${SEP_CSV}"
 	fi
 fi
-
 RUNS="`jq .data[].runNumber ${DATA} | tac`"
 NRUNS=$(( `echo "${RUNS}" | wc -l` ))
 if (( NRUNS > 998 )); then
@@ -176,7 +183,6 @@ printStr() {
    printf "%s" "$*" | tr -d "\""
    printf "${SEP}"
 }
-
 
 if [ $getCTP = 1 ] && [ $fillNo -lt 10004 ];
 then
@@ -237,7 +243,7 @@ rm vals.json
 
 fi
 
-
+(( dbg )) && echo "NUmber of Runs: " ${RUNS}
 for runNumber  in ${RUNS}; do
    n=$((n-1))
    
@@ -285,9 +291,12 @@ for runNumber  in ${RUNS}; do
 	if [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
 		trigger_class_select="C1ZNC-B-NOPF-CRU"
     fi
+	if (( $getCosmics )); then
+		trigger_class_select="CN0HCO-NONE-NOPF-TRDclust"
+	fi
 	if [[ $fillNo -gt 10003 ]];
 	then
-		URL2="https://ali-bookkeeping.cern.ch/api/trigger-counters/${runNumber}?token=${BK_TOKEN}"
+		URL2="https://ali-bookkeeping.cern.ch/api/ctp-trigger-counters/${runNumber}?token=${BK_TOKEN}"
 		if [[ $hostname == *"alio2-cr1"* ]]; then
 			(( dbg )) && echo "Run internally"
 			declare -x http_proxy="10.161.69.44:8080"
@@ -295,24 +304,28 @@ for runNumber  in ${RUNS}; do
 		fi
 		(( dbg )) && echo wget -q "${URL2}" --no-check-certificate -O ${DATA_TRIGGERS}
 		wget -q "${URL2}" --no-check-certificate -O ${DATA_TRIGGERS}
-		(( dbg )) && echo "Trigger information collected"
-		triggerlength=`jq '.[] | length' ${DATA_TRIGGERS}`
 		
+		triggerlength=`jq '.[] | length' ${DATA_TRIGGERS}`
+		(( dbg )) && echo "Trigger information collected (length: $triggerlength)"
 		trigger_found=0;
 		ft0_triggers=0;
 		for trigger_class  in `seq 1 $triggerlength`; do
-			className=`jq .data[$trigger_class].className ${DATA_TRIGGERS}`
+			className=`jq .data[$((trigger_class-1))].className ${DATA_TRIGGERS}`
 			if [[ "$className" == *${trigger_class_select}* ]];
 			then	
 				trigger_found=1;
-				ft0_triggers=`jq .data[$trigger_class].lmb ${DATA_TRIGGERS}`
+				ft0_triggers=`jq .data[$((trigger_class-1))].l0b ${DATA_TRIGGERS}`
 				if [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
-					ft0_triggers=`jq .data[$trigger_class].l1a ${DATA_TRIGGERS}`
+					ft0_triggers=`jq .data[$((trigger_class-1))].l1a ${DATA_TRIGGERS}`
 					ft0_triggers=`echo "scale=0; $ft0_triggers" | bc`
 				fi
 				(( dbg )) && echo Trigger found: $ft0_triggers
 			fi
 		done
+		if [[ $trigger_found=0 ]];
+		then 
+			(( dbg )) && echo "Trigger class " $trigger_class_select " not found"
+		fi
 	fi
 
 #printf "Passed\n" >&2
@@ -422,7 +435,11 @@ for runNumber  in ${RUNS}; do
 	   
 	   (( dbg )) && echo  BeamType: $beamtype 
 	   if [[ $beamtype == *"PROTON"* && $getCTP -eq 1 ]]; then
-			echo $LINE | cut -d"$SEP" -f $selection,26,27 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+			   if (( $getCosmics )); then
+					echo $LINE | cut -d"$SEP" -f $selection,26 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+				else
+					echo $LINE | cut -d"$SEP" -f $selection,26,27 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
+				fi
 		elif [[ $beamtype == *"PB"* && $getCTP -eq 1  ]]; then
 			if [[ $fillNo -lt 10004 ]]; then  
 				echo $LINE | cut -d"$SEP" -f $selection,24,25 | tr "$SEP" "${SEP_CSV}" | tr "\"" " "
