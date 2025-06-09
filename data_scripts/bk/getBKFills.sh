@@ -26,6 +26,7 @@ usage() {
    printf "   -c Fill was used for calibration runs"
    printf "   -e Environment stats"
    printf "   -k Calibration stats"
+   printf "   -i Force IL pickup"
 }
 
 dbg=0
@@ -34,7 +35,8 @@ selection=""
 CalibFill=""
 calibandenv=0
 calibandenv2=0
-while getopts F:s:dhcek? flag; do
+redoil=0
+while getopts F:s:dhceki? flag; do
    case "${flag}" in
       F) fillNo="${OPTARG}";;
       d) dbg=1;;
@@ -42,6 +44,7 @@ while getopts F:s:dhcek? flag; do
       s) selection="${OPTARG}";;
       e) calibandenv=1;;
       k) calibandenv2=1;;
+	  i) redoil=1;;
       h|*) usage; exit 1;;
    esac
 done
@@ -52,6 +55,7 @@ if (( dbg )); then
 fi >&2
 # Get delivery from masi file:
 massi_folder="/home/rc/massi-files/$fillNo"
+env_folder="/home/rc/environments"
 if [ ! -d "$massi_folder" ]; then
   echo "$massi_folder does not exist."
   mkdir -v $massi_folder
@@ -70,10 +74,10 @@ fi
 delivered_lumi=`cat $massi_folder/$massi_summary | cut -f 4 | sed '1p;d'`
 delivered_lumi=`echo "scale=7; $delivered_lumi /1000" | bc`
 peak_lumi=`cat $massi_folder/$massi_summary | cut -f 3 | sed '1p;d'`
-(( dbg )) && echo Delivery Lumi from summary: ${delivered_lumi}
+
 delivered_lumi_2=`cat $massi_folder/${massi_detail} | cut -f 3 | awk '{s+=$1} END {print s}'`
 delivered_lumi_2=`echo "scale=7; $delivered_lumi_2 *60/1000" | bc`
-(( dbg )) && echo Delivery Lumi from single files: ${delivered_lumi_2}
+
 O=""
 if [ "${from}${to}" ]; then
    O=""
@@ -181,6 +185,16 @@ LINE+=$(printNum $(jq ".data.fillNumber" ${DATA}))
 sbStart=$(jq ".data.stableBeamsStart" ${DATA})
 sbEnd=$(jq ".data.stableBeamsEnd" ${DATA})
 sbDuration=$(jq ".data.stableBeamsDuration" ${DATA})
+delivered_lumi_3=$(jq ".data.deliveredLuminosity" ${DATA})
+if [ ! -z "${delivered_lwumi_3}"  ]; then
+	delivered_lumi_3=`echo "scale=7; $delivered_lumi_3 /1000" | bc`
+	delivered_lumi_final=$delivered_lumi_3
+else
+	delivered_lumi_final=$delivered_lumi
+fi
+(( dbg )) && echo Delivery Lumi from summary: ${delivered_lumi}
+(( dbg )) && echo Delivery Lumi from single files: ${delivered_lumi_2}
+(( dbg )) && echo Delivery Lumi from BK: ${delivered_lumi_3}
 
 LINE+=$(timeToDate $sbStart)
 
@@ -237,8 +251,8 @@ for runNumber in ${RUNS}; do
 	fi
 	id=$(jq ".data[$e].id" ${DATA2})
 	env=$(jq ".data[$e].createdAt" ${DATA2})
-	id=$(jq ".data[$e].id" ${DATA2})
-	curRun=$(jq .data.runs[$n].runNumber ${DATA})
+	id=$(jq .data.runs[$n].environmentId ${DATA})
+	id=`echo $id | tr -d '"'`
 	runDefinition=$(jq .data.runs[$n].definition ${DATA})
 	nDecRun=$(jq .data.runs[$n].nDetectors ${DATA})
 	tags=`jq .data.runs[$n].tags[].text ${DATA} | tac` 
@@ -249,7 +263,131 @@ for runNumber in ${RUNS}; do
    if  [[ $tags == *System* ]]; then goodtag=1; fi
    if  [[ $tags == *Special* ]] && [[ $nDecRun -gt 2 ]]; then goodtag=1; fi
 	(( dbg )) && echo " ---------------------- Run $runNumber ($runDefinition - $goodtag) - $id - $env ($first_physics_env_time) -----------------------------"
-	if  [[ "$runDefinition" == *"PHYSICS"* ]] ||[[ $goodtag == 1 ]]  ;then
+	if  [[ "$runDefinition" == *"PHYSICS"* ]] || [[ $goodtag == 1 ]]  ;then
+		env_file="$env_folder/env_time_${id}.dat"
+		if [ ! -e $env_file ] || [ $redoil == 1 ] ; then
+			echo " $env_file  does not exist -> retrieve it"
+			echo /home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id}
+		fi
+		il_r=`grep "CREATE" $env_file`
+		if [ -z "$il_r"  ]; then
+			echo " $env_file ->  empty try again"
+			/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id}
+		fi
+		il_create_time=`grep "CREATE" $env_file | cut -d"-" -f 4`
+		il_create_time=`echo "scale=0; $il_create_time *1000" | bc | cut -d"." -f 1`
+		(( dbg )) && echo  "READY TO START"
+		il_rts=`grep "READY TO START"  $env_file`	
+		(( dbg )) && echo  "READY TO START"		
+		if [ ! -z "${il_rts}" ]; then 
+			il_ready_to_start_time=`echo ${il_rts} | cut -d"-" -f 5`
+			il_ready_to_start_time=`echo "scale=0; $il_ready_to_start_time *1000" | bc | cut -d"." -f 1`
+		else
+			echo "READY TO START" not found in $env_file
+			echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+		fi	
+		(( dbg )) && echo  "CLICKED START"
+		il_csta=`grep "CLICKED START" $env_file`	
+		if [ ! -z "${il_csta}" ]; then 
+			il_clicked_start_time=`echo ${il_csta} | cut -d"-" -f 5`
+			il_clicked_start_time=`echo "scale=0; $il_clicked_start_time *1000" | bc | cut -d"." -f 1`
+		else
+			echo "CLICKED START"  not found in $env_file
+			echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+		fi		
+		(( dbg )) && echo  "RUNNING"	
+
+		il_run=`grep "RUNNING"    $env_file`
+		il_rerr=`grep "RUN ERROR"  $env_file`		
+		if [ ! -z "${il_run}" ]; then 
+			il_runnung_time=`echo ${il_run} | cut -d"-" -f 5`
+			il_runnung_time=`echo "scale=0; $il_runnung_time *1000" | bc | cut -d"." -f 1`
+		elif [ ! -z "${il_rerr}" ]; then 
+			(( dbg )) && echo   "GO ERROR"			
+			il_run_stopped_time=`echo ${il_rerr} | cut -d"-" -f 5`
+			il_run_stopped_time=`echo "scale=0; $il_run_stopped_time *1000" | bc | cut -d"." -f 1`
+			il_shut=`grep "DESTROY START"   $env_file`
+			if [ ! -z "${il_shut}" ]; then 
+				il_shutdown_time=`echo ${il_shut} | cut -d"-" -f 5`
+				il_shutdown_time=`echo "scale=0; $il_shutdown_time *1000" | bc | cut -d"." -f 1`
+			else 
+				echo "DESTROY START" not found in $env_file
+				echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+			fi
+		fi	
+		(( dbg )) && echo   "CLICKED STOP"	
+		il_csto=`grep "CLICKED STOP"  $env_file`
+		if [ ! -z "${il_csto}" ]; then 
+			il_clicked_stop_time=`echo ${il_csto} | cut -d"-" -f 5`
+			il_clicked_stop_time=`echo "scale=0; $il_clicked_stop_time *1000" | bc | cut -d"." -f 1`
+		elif [ ! -z "${il_rerr}" ]; then 
+				(( dbg )) && echo   "GO ERROR"			
+				il_run_stopped_time=`echo ${il_rerr} | cut -d"-" -f 5`
+				il_run_stopped_time=`echo "scale=0; $il_run_stopped_time *1000" | bc | cut -d"." -f 1`
+				il_shut=`grep "DESTROY START"   $env_file`
+				if [ ! -z "${il_shut}" ]; then 
+					il_shutdown_time=`echo ${il_shut} | cut -d"-" -f 5`
+					il_shutdown_time=`echo "scale=0; $il_shutdown_time *1000" | bc | cut -d"." -f 1`
+				else 
+					echo "DESTROY START" not found in $env_file
+					echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+				fi
+		else
+			echo "CLICKED STOP" not found in $env_file
+			echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+		fi
+		(( dbg )) && echo  "RUN STOPPED"
+		il_rsto=`grep "RUN STOPPED"  $env_file`
+		il_rerr=`grep "RUN ERROR"  $env_file`
+		if [ ! -z "${il_rsto}" ]; then 
+			il_run_stopped_time=`echo ${il_rsto} | cut -d"-" -f 5`
+			il_run_stopped_time=`echo "scale=0; $il_run_stopped_time *1000" | bc | cut -d"." -f 1`
+			
+			(( dbg )) && echo  "SHUTDOWN START"
+			il_shut=`grep "SHUTDOWN START"   $env_file`
+			if [ ! -z "${il_shut}" ]; then 
+				il_shutdown_time=`echo ${il_shut} | cut -d"-" -f 5`
+				il_shutdown_time=`echo "scale=0; $il_shutdown_time *1000" | bc | cut -d"." -f 1`
+			elif [ ! -z "${il_rerr}" ]; then 
+				(( dbg )) && echo   "GO ERROR"			
+				il_run_stopped_time=`echo ${il_rerr} | cut -d"-" -f 5`
+				il_run_stopped_time=`echo "scale=0; $il_run_stopped_time *1000" | bc | cut -d"." -f 1`
+				il_shut=`grep "DESTROY START"   $env_file`
+				if [ ! -z "${il_shut}" ]; then 
+					il_shutdown_time=`echo ${il_shut} | cut -d"-" -f 5`
+					il_shutdown_time=`echo "scale=0; $il_shutdown_time *1000" | bc | cut -d"." -f 1`
+				else 
+					echo "DESTROY START" not found in $env_file
+					echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+				fi
+			else
+				echo "SHUTDOWN START" not found in $env_file
+				echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+			fi
+		elif [ ! -z "${il_rerr}" ]; then 
+			(( dbg )) && echo   "GO ERROR"			
+			il_run_stopped_time=`echo ${il_rerr} | cut -d"-" -f 5`
+			il_run_stopped_time=`echo "scale=0; $il_run_stopped_time *1000" | bc | cut -d"." -f 1`
+			il_shut=`grep "DESTROY START"   $env_file`
+			if [ ! -z "${il_shut}" ]; then 
+				il_shutdown_time=`echo ${il_shut} | cut -d"-" -f 5`
+				il_shutdown_time=`echo "scale=0; $il_shutdown_time *1000" | bc | cut -d"." -f 1`
+			else 
+				echo "DESTROY START" not found in $env_file
+				echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+			fi
+		fi
+		(( dbg )) && echo  "SHUTDOWN END"
+		il_end=`grep "SHUTDOWN END"   $env_file`
+		if [ ! -z "${il_end}" ]; then 
+			il_shutdown_end_time=`echo ${il_end} | cut -d"-" -f 5`
+			il_shutdown_end_time=`echo "scale=0; $il_shutdown_end_time *1000" | bc | cut -d"." -f 1`
+		else 
+			echo "SHUTDOWN END" not found in $env_file
+			echo "/home/rc/alice-tpc-flp-scripts/data_scripts/il/il_extract.sh ${id} &"
+		fi
+		
+		
 		(( $first_physics_env_time == 0 )) && first_physics_env_time=$env && first_physics_env=$id
 		startofRun=$(jq .data.runs[$n].timeO2Start ${DATA})
 		endofRun=$(jq .data.runs[$n].timeO2End ${DATA})
@@ -323,28 +461,31 @@ for runNumber in ${RUNS}; do
 		time_to_deploy_loc=$(( (time_deployed-time_standby)/1000 ))
 		time_to_configured_local=$(( (time_configured-time_deployed)/1000))
 		time_to_running_local=$(( (time_running-time_configured)/1000))
+		(( time_to_running_local < 0 )) && time_to_running_local=$(( (il_run_stopped_time-time_configured)/1000))
 		time_to_stopping_local=$(( (time_stopped-endofTrigger)/1000))
 		time_to_shutdown_local=$(( (time_destroyed-time_stopped)/1000))
 		nEPN=$(jq ".data.runs[$n].nEpns" ${DATA})
 		nFLP=$(jq ".data.runs[$n].nFlps" ${DATA})
 		startClickTime=$(jq ".data.runs[$n].timeO2Start" ${DATA}) 
-		(( dbg )) && echo time_standby:$(timeToDate $time_standby)
+		(( dbg )) && echo time_creation:$(timeToDate $env) - $(timeToDate $il_create_time) 
+		(( dbg )) && echo time_standby:$(timeToDate $time_standby) 
 		(( dbg )) && echo time_deployed:$(timeToDate $time_deployed)
-		(( dbg )) && echo time_configured:$(timeToDate $time_configured)
-		(( dbg )) && echo time_StartofRun:$(timeToDate $startofRun)
-		(( dbg )) && echo time_StartofTrigger:$(timeToDate $startofTrigger)
+		(( dbg )) && echo time_configured:$(timeToDate $time_configured) - $(timeToDate $il_ready_to_start_time) 
+		(( dbg )) && echo time_StartofRun:$(timeToDate $startofRun) - $(timeToDate $il_clicked_start_time) 
+		(( dbg )) && echo time_StartofTrigger:$(timeToDate $startofTrigger) - $(timeToDate $il_runnung_time)
 		(( dbg )) && echo time_running:$(timeToDate $time_running)
 		(( dbg )) && echo time_endofRun:$(timeToDate $endofRun)
-		(( dbg )) && echo time_endofTrigger:$(timeToDate $endofTrigger)
-		(( dbg )) && echo time_stopped:$(timeToDate $time_stopped)
-		(( dbg )) && echo time_destroyed:$(timeToDate $time_destroyed)
+		(( dbg )) && echo time_endofTrigger/Stop Clicked:$(timeToDate $endofTrigger) - $(timeToDate $il_clicked_stop_time)
+		(( dbg )) && echo time_stopped:$(timeToDate $time_stopped) 
+		(( dbg )) && echo time_stopped_clicked:$(timeToDate $il_shutdown_time)
+		(( dbg )) && echo time_destroyed:$(timeToDate $time_destroyed) - $(timeToDate $il_shutdown_end_time)
 		(( dbg )) && echo "Tags($goodtag):" $tags
 		(( dbg )) && echo $(timeToDate  $goodStart) -  $(timeToDate  $goodEnd) - $(( (goodEnd - goodStart)/1000 ))
 		if [[ $firstrun=1 == 1 ]]; then	
 			time_to_configured_local=0
 			firstrun=0
 		fi
-		(( $calibandenv == 1 )) && echo $id,$fillNo,$(timeToDate $env),$runNumber,$nEPN,$nFLP,${runDefinition},$(timeToDate $startClickTime),$(timeToDate $startofTrigger),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
+		(( $calibandenv == 1 )) && echo $id,$fillNo,$(timeToDate $env),$runNumber,$nEPN,$nFLP,${runDefinition},$(timeToDate $il_clicked_start_time),$(timeToDate $startofTrigger),$(timeToDate $endofRun),$time_to_deploy_loc,$time_to_configured_local,$time_to_running_local,$time_to_stopping_local,$time_to_shutdown_local,$error_found
 		if [[ $calibfound == 0 ]];
 		then		
 			first_physics_env_status="SUCCESS"
@@ -458,6 +599,7 @@ fi
 
 filling_schema=$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")
 coll_bunches=`echo $filling_schema | cut -f 4 -d_`
+coll_bunches=$(jq ".data.collidingBunchesCount" ${DATA})
 if [[ $calibandenv == 0 ]];
 then
 	echo -n "$fillNo,$eff%"
@@ -474,7 +616,7 @@ then
 		printf ',%02d:%02d:%02d' $((calib_duration/3600)) $((calib_duration%3600/60)) $((calib_duration%60))
 		echo ",$calib_detectors,$good_env,$failed_env",$first_physics_env,$(timeToDate $first_physics_env_time),$first_physics_env_run,$first_physics_env_status,,$first_physics_run,$frist_physics_quality,$(timeToDate $first_physics_start), $frist_physics_id,$first_physics_eor
 	else
-		echo ",${delivered_lumi},${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")",${peak_lumi}
+		echo ",${delivered_lumi_final},${CalibFill}${ShortFill},$(jq ".data.fillingSchemeName" ${DATA} | tr -d "\"")",${peak_lumi}
 		#echo ",${delivered_lumi}"
 	fi
 fi
